@@ -8,11 +8,16 @@ __pycache__/
 venv/
 env/
 ENV/
+.pnp
+.pnp.js
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.test
 
 # Logs
 logs/
@@ -20,16 +25,35 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
+*.sql
+mysql_data/
+mongodb_data/
+redis_data/
+rabbitmq_data/
 
 # Build outputs
 dist/
 build/
 *.egg-info/
+.next/
+out/
+.cache/
+
+# Frontend build
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# Backend build
+backend/dist/
+backend/build/
 
 # IDE
 .vscode/
@@ -37,27 +61,119 @@ build/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # Docker
 docker-compose.override.yml
-*.log
 docker-compose.yml.bak
+*.log
+.docker/
+
+# Docker volumes and data
+data/
+volumes/
+*.volume
 
 # Testing
 coverage/
 .nyc_output/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.hypothesis/
+*.cover
+*.py,cover
 
 # ML Models
 *.pkl
 *.joblib
+*.h5
+*.model
 models/trained/
+*.weights
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+*.bak
+*.swp
+*.swo
+*~
 
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+*.cert
+secrets/
+credentials/
+*.secret
+
+# Monitoring and metrics
+monitoring/grafana/data/
+monitoring/prometheus/data/
+*.prom
+
+# CI/CD
+.github/workflows/*.local.yml
+.circleci/
+.travis.yml
+
+# Package manager locks (opcional - algunos proyectos los incluyen)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Local configuration overrides
+config.local.js
+config.local.json
+settings.local.js
+
+# Backup files
+*.backup
+*.old
+*.orig
+
+# RabbitMQ
+rabbitmq_data/
+.erlang.cookie
+
+# Redis
+dump.rdb
+*.rdb
+
+# MongoDB
+mongodb_data/
+*.bson
+
+# MySQL
+mysql_data/
+*.sql.gz
+
+# SSL certificates
+*.pem
+*.crt
+*.key
+ssl/
+certs/
+
+# Local development
+.local/
+local/
+*.local
