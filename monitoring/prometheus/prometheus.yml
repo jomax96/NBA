@@ -1,0 +1,44 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Backend nodes
+  - job_name: 'backend-node1'
+    static_configs:
+      - targets: ['backend-node1:3000']
+    metrics_path: '/metrics'
+    
+  - job_name: 'backend-node2'
+    static_configs:
+      - targets: ['backend-node2:3000']
+    metrics_path: '/metrics'
+    
+  - job_name: 'backend-node3'
+    static_configs:
+      - targets: ['backend-node3:3000']
+    metrics_path: '/metrics'
+
+  # ML Predictions Service
+  - job_name: 'ml-predictions'
+    static_configs:
+      - targets: ['ml-predictions:5000']
+    metrics_path: '/metrics'
+
+  # Notifications Service
+  - job_name: 'notifications'
+    static_configs:
+      - targets: ['notifications:4000']
+    metrics_path: '/metrics'
+
+  # MySQL Exporter (si está configurado)
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+    scrape_interval: 30s
+
+  # Redis Exporter (si está configurado)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
