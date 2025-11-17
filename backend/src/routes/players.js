@@ -3,7 +3,9 @@ const router = express.Router();
 const playersController = require('../controllers/playersController');
 
 router.get('/top', playersController.getTopPlayers);
+router.get('/search', playersController.searchPlayers);
 router.get('/:playerId', playersController.getPlayerStats);
+
 
 module.exports = router;
 

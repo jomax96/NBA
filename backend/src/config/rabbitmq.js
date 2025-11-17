@@ -5,55 +5,86 @@ let connection = null;
 let channel = null;
 const QUEUE_NAME = process.env.RABBITMQ_QUEUE || 'user.operations';
 
+// Configuración de reintentos
+const MAX_RETRIES = 10;
+const RETRY_DELAY = 5000; // 5 segundos
+
 /**
- * Inicializa conexión a RabbitMQ
+ * Función helper para esperar
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Inicializa conexión a RabbitMQ con reintentos
  */
 async function initRabbitMQ() {
-  try {
-    const url = `amqp://${process.env.RABBITMQ_USER || 'admin'}:${process.env.RABBITMQ_PASS || 'adminpassword'}@${process.env.RABBITMQ_HOST || 'localhost'}:5672`;
-    
-    connection = await amqp.connect(url);
-    
-    connection.on('error', (err) => {
-      logger.error('RabbitMQ Connection Error:', err);
-    });
+  const url = `amqp://${process.env.RABBITMQ_USER || 'admin'}:${process.env.RABBITMQ_PASS || 'adminpassword'}@${process.env.RABBITMQ_HOST || 'localhost'}:5672`;
 
-    connection.on('close', () => {
-      logger.warn('RabbitMQ connection closed');
-    });
+  let retries = 0;
 
-    channel = await connection.createChannel();
-    
-    // Declarar cola persistente
-    await channel.assertQueue(QUEUE_NAME, {
-      durable: true // Sobrevive reinicios del broker
-    });
+  while (retries < MAX_RETRIES) {
+    try {
+      logger.info(`Attempting to connect to RabbitMQ... (attempt ${retries + 1}/${MAX_RETRIES})`);
 
-    logger.info('✅ RabbitMQ connected and queue declared');
-    return { connection, channel };
-  } catch (error) {
-    logger.error('❌ RabbitMQ connection error:', error.message);
-    // RabbitMQ no es crítico para inicio, continuamos
-    return null;
+      connection = await amqp.connect(url);
+
+      connection.on('error', (err) => {
+        logger.error('RabbitMQ Connection Error:', err);
+      });
+
+      connection.on('close', () => {
+        logger.warn('RabbitMQ connection closed');
+        // Intentar reconectar automáticamente
+        setTimeout(() => initRabbitMQ(), RETRY_DELAY);
+      });
+
+      channel = await connection.createChannel();
+
+      // Declarar cola persistente
+      await channel.assertQueue(QUEUE_NAME, {
+        durable: true
+      });
+
+      logger.info('✅ RabbitMQ connected and queue declared');
+      return { connection, channel };
+
+    } catch (error) {
+      retries++;
+      logger.warn(`RabbitMQ connection attempt ${retries} failed: ${error.message}`);
+
+      if (retries < MAX_RETRIES) {
+        logger.info(`Retrying in ${RETRY_DELAY / 1000} seconds...`);
+        await sleep(RETRY_DELAY);
+      } else {
+        logger.error('❌ Max retries reached. Could not connect to RabbitMQ');
+        return null;
+      }
+    }
   }
 }
 
 /**
- * Publica mensaje en cola
+ * Publica mensaje en cola con reintentos
  */
 async function publishMessage(queueName, message, options = {}) {
   try {
+    // Si no hay canal, intentar reconectar
     if (!channel) {
-      throw new Error('RabbitMQ channel not initialized');
+      logger.info('Channel not available, attempting to reconnect...');
+      await initRabbitMQ();
+
+      if (!channel) {
+        throw new Error('Unable to establish RabbitMQ connection');
+      }
     }
 
     const messageBuffer = Buffer.from(JSON.stringify(message));
-    
+
     const sent = channel.sendToQueue(
       queueName || QUEUE_NAME,
       messageBuffer,
       {
-        persistent: true, // Mensaje duradero
+        persistent: true,
         ...options
       }
     );
@@ -72,12 +103,18 @@ async function publishMessage(queueName, message, options = {}) {
 }
 
 /**
- * Consume mensajes de cola
+ * Consume mensajes de cola con reintentos
  */
 async function consumeMessages(queueName, callback) {
   try {
+    // Si no hay canal, intentar reconectar
     if (!channel) {
-      throw new Error('RabbitMQ channel not initialized');
+      logger.info('Channel not available for consuming, attempting to reconnect...');
+      await initRabbitMQ();
+
+      if (!channel) {
+        throw new Error('Unable to establish RabbitMQ connection for consuming');
+      }
     }
 
     await channel.consume(queueName || QUEUE_NAME, async (msg) => {
@@ -88,7 +125,6 @@ async function consumeMessages(queueName, callback) {
           channel.ack(msg);
         } catch (error) {
           logger.error('Error processing message:', error);
-          // Rechazar mensaje y enviar a DLQ
           channel.nack(msg, false, false);
         }
       }
@@ -109,7 +145,6 @@ async function consumeMessages(queueName, callback) {
 async function checkRabbitMQHealth() {
   try {
     if (!connection || !channel) return false;
-    // Verificar que la conexión esté activa
     return connection.connection && !connection.connection.closing;
   } catch (error) {
     return false;
@@ -141,4 +176,3 @@ module.exports = {
   closeRabbitMQ,
   QUEUE_NAME
 };
-

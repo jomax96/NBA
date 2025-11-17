@@ -19,9 +19,9 @@ function Profile() {
   const fetchUserData = async () => {
     try {
       const [favoritesRes, historyRes, alertsRes] = await Promise.all([
-        axios.get('/api/users/favorites').catch(() => ({ data: { data: [] } })),
-        axios.get('/api/users/search-history?limit=20').catch(() => ({ data: { data: [] } })),
-        axios.get('/api/users/alerts').catch(() => ({ data: { data: [] } }))
+        axios.get('users/favorites').catch(() => ({ data: { data: [] } })),
+        axios.get('users/search-history?limit=20').catch(() => ({ data: { data: [] } })),
+        axios.get('users/alerts').catch(() => ({ data: { data: [] } }))
       ]);
 
       setFavorites(favoritesRes.data.data || []);
@@ -73,41 +73,37 @@ function Profile() {
             <nav className="flex -mb-px">
               <button
                 onClick={() => setActiveTab('profile')}
-                className={`px-6 py-4 text-sm font-medium ${
-                  activeTab === 'profile'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`px-6 py-4 text-sm font-medium ${activeTab === 'profile'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 Perfil
               </button>
               <button
                 onClick={() => setActiveTab('favorites')}
-                className={`px-6 py-4 text-sm font-medium ${
-                  activeTab === 'favorites'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`px-6 py-4 text-sm font-medium ${activeTab === 'favorites'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 Favoritos ({favorites.length})
               </button>
               <button
                 onClick={() => setActiveTab('history')}
-                className={`px-6 py-4 text-sm font-medium ${
-                  activeTab === 'history'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`px-6 py-4 text-sm font-medium ${activeTab === 'history'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 Historial ({searchHistory.length})
               </button>
               <button
                 onClick={() => setActiveTab('alerts')}
-                className={`px-6 py-4 text-sm font-medium ${
-                  activeTab === 'alerts'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`px-6 py-4 text-sm font-medium ${activeTab === 'alerts'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 Alertas ({alerts.length})
               </button>

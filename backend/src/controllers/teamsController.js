@@ -9,7 +9,7 @@ const logger = require('../utils/logger');
 async function getAllTeams(req, res) {
   try {
     const cacheKey = 'teams:all';
-    
+
     // Intentar desde caché primero
     const cached = await cacheService.get(cacheKey);
     if (cached) {
@@ -26,9 +26,9 @@ async function getAllTeams(req, res) {
       async () => {
         const pool = getMySQLPool();
         if (!pool) throw new Error('MySQL pool not available');
-        
+
         const [rows] = await pool.execute(
-          'SELECT team_id, team_name, city, abbreviation, conference, division FROM teams ORDER BY team_name'
+          'SELECT id, full_name, abbreviation, nickname, city, state, year_founded FROM team ORDER BY full_name'
         );
         return rows;
       },
@@ -82,21 +82,33 @@ async function getTeamStats(req, res) {
       async () => {
         const pool = getMySQLPool();
         if (!pool) throw new Error('MySQL pool not available');
-        
+
         const [rows] = await pool.execute(
           `SELECT 
-            t.team_id, t.team_name, t.city, t.conference, t.division,
+            t.id as team_id,
+            t.full_name,
+            t.abbreviation,
+            t.nickname,
+            t.city,
+            t.state,
+            t.year_founded,
             COUNT(DISTINCT g.game_id) as total_games,
-            SUM(CASE WHEN (g.home_team_id = t.team_id AND g.home_team_score > g.visitor_team_score) 
-                      OR (g.visitor_team_id = t.team_id AND g.visitor_team_score > g.home_team_score) 
-                      THEN 1 ELSE 0 END) as wins,
-            SUM(CASE WHEN (g.home_team_id = t.team_id AND g.home_team_score < g.visitor_team_score) 
-                      OR (g.visitor_team_id = t.team_id AND g.visitor_team_score < g.home_team_score) 
-                      THEN 1 ELSE 0 END) as losses
-           FROM teams t
-           LEFT JOIN games g ON g.home_team_id = t.team_id OR g.visitor_team_id = t.team_id
-           WHERE t.team_id = ?
-           GROUP BY t.team_id`,
+            SUM(CASE WHEN g.team_id_home = t.id AND g.wl_home = 'W' THEN 1 
+                     WHEN g.team_id_away = t.id AND g.wl_away = 'W' THEN 1 
+                     ELSE 0 END) as wins,
+            SUM(CASE WHEN g.team_id_home = t.id AND g.wl_home = 'L' THEN 1 
+                     WHEN g.team_id_away = t.id AND g.wl_away = 'L' THEN 1 
+                     ELSE 0 END) as losses,
+            AVG(CASE WHEN g.team_id_home = t.id THEN g.pts_home 
+                     WHEN g.team_id_away = t.id THEN g.pts_away 
+                     END) as avg_points_scored,
+            AVG(CASE WHEN g.team_id_home = t.id THEN g.pts_away 
+                     WHEN g.team_id_away = t.id THEN g.pts_home 
+                     END) as avg_points_allowed
+           FROM team t
+           LEFT JOIN game g ON g.team_id_home = t.id OR g.team_id_away = t.id
+           WHERE t.id = ?
+           GROUP BY t.id, t.full_name, t.abbreviation, t.nickname, t.city, t.state, t.year_founded`,
           [teamId]
         );
         return rows[0] || null;
@@ -126,9 +138,7 @@ async function getTeamStats(req, res) {
     });
   }
 }
-
 module.exports = {
   getAllTeams,
   getTeamStats
 };
-

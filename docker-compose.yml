@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL Database (Read-Only - Datos NBA)
   mysql:
@@ -107,8 +105,8 @@ services:
       ML_SERVICE_URL: http://ml-predictions:5000
       NOTIFICATIONS_SERVICE_URL: http://notifications:4000
       FRONTEND_URL: http://localhost
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      #GOOGLE_CLIENT_ID: 
+      #GOOGLE_CLIENT_SECRET: 
       GOOGLE_CALLBACK_URL: http://localhost/api/auth/google/callback
     # No expone puertos externos - se accede solo a través de NGINX
     expose:
@@ -151,8 +149,8 @@ services:
       ML_SERVICE_URL: http://ml-predictions:5000
       NOTIFICATIONS_SERVICE_URL: http://notifications:4000
       FRONTEND_URL: http://localhost
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      #GOOGLE_CLIENT_ID: 
+      #GOOGLE_CLIENT_SECRET: 
       GOOGLE_CALLBACK_URL: http://localhost/api/auth/google/callback
     # No expone puertos externos - se accede solo a través de NGINX
     expose:
@@ -195,8 +193,8 @@ services:
       ML_SERVICE_URL: http://ml-predictions:5000
       NOTIFICATIONS_SERVICE_URL: http://notifications:4000
       FRONTEND_URL: http://localhost
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      #GOOGLE_CLIENT_ID: 
+      #GOOGLE_CLIENT_SECRET:
       GOOGLE_CALLBACK_URL: http://localhost/api/auth/google/callback
     # No expone puertos externos - se accede solo a través de NGINX
     expose:
