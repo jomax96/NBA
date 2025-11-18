@@ -9,6 +9,7 @@ const { initRedis } = require('./config/redis');
 const { initRabbitMQ, consumeMessages } = require('./config/rabbitmq');
 const { authenticate } = require('./middleware/auth');
 const { getMongoDB } = require('./config/database');
+const { ObjectId } = require('mongodb'); // NUEVO: Agregado para manejar ObjectIds
 
 // Inicializar Passport para autenticación
 const passport = require('./config/passport');
@@ -36,9 +37,9 @@ const limiter = rateLimit({
   skip: (req) => {
     // Excluir rutas de autenticación del rate limiting
     const path = req.path || req.url || req.originalUrl || '';
-    const isAuthRoute = path.includes('/auth/') || 
-                       path.includes('/users/login') ||
-                       path.includes('/users/register');
+    const isAuthRoute = path.includes('/auth/') ||
+      path.includes('/users/login') ||
+      path.includes('/users/register');
     return isAuthRoute;
   },
   standardHeaders: true,
@@ -49,10 +50,10 @@ const limiter = rateLimit({
 // Aplicar rate limiting solo después de verificar que no es ruta de autenticación
 app.use('/api/', (req, res, next) => {
   const path = req.path || req.url || req.originalUrl || '';
-  const isAuthRoute = path.includes('/auth/') || 
-                     path.includes('/users/login') ||
-                     path.includes('/users/register');
-  
+  const isAuthRoute = path.includes('/auth/') ||
+    path.includes('/users/login') ||
+    path.includes('/users/register');
+
   if (isAuthRoute) {
     // Saltar rate limiting para rutas de autenticación
     return next();
@@ -96,10 +97,14 @@ app.use('/api', require('./routes/index'));
 async function startQueueWorker() {
   try {
     await consumeMessages('user.operations', async (message) => {
-      logger.info('Queue Worker: Processing queued operation:', message.type);
-      
+      logger.info('Queue Worker: Processing queued operation:', {
+        type: message.type,
+        userId: message.userId,
+        nodeId: message.nodeId
+      });
+
       const { mongoDBCircuitBreaker } = require('./utils/circuitBreaker');
-      
+
       // Usar Circuit Breaker para MongoDB - todas las operaciones dentro
       await mongoDBCircuitBreaker.execute(
         async () => {
@@ -118,48 +123,109 @@ async function startQueueWorker() {
                   name,
                   createdAt: new Date()
                 };
-                
+
                 // Si tiene password, es registro tradicional
                 if (password) {
                   userData.password = password; // Ya está hasheado
                 }
-                
+
                 // Si tiene googleId, es registro con Google
                 if (googleId) {
                   userData.googleId = googleId;
                   userData.provider = provider || 'google';
                   if (picture) userData.picture = picture;
                 }
-                
+
                 await db.collection('users').insertOne(userData);
                 logger.info('User registered:', email);
               } catch (error) {
                 if (error.code !== 11000) { // Duplicate key
                   throw error;
                 }
-                logger.warn('User already exists:', email);
+                logger.warn('User already exists:', message.data.email);
               }
               break;
 
+            // ===== CASO FAVORITOS - CORREGIDO =====
             case 'favorite':
               try {
                 const { favoriteType, favoriteId, action } = message.data;
-                const updateField = `favorites.${favoriteType}`;
-                
+                const userId = message.userId; // Este viene como string desde la cola
+
+                logger.info(`Processing favorite ${action}:`, {
+                  userId,
+                  favoriteType,
+                  favoriteId
+                });
+
                 if (action === 'add') {
-                  await db.collection('users').updateOne(
-                    { _id: message.userId },
-                    { $addToSet: { [updateField]: favoriteId } }
+                  // Agregar favorito (evitar duplicados con upsert)
+                  const result = await db.collection('favorites').updateOne(
+                    {
+                      userId: userId, // Guardar como string, es más flexible
+                      type: favoriteType,
+                      itemId: favoriteId
+                    },
+                    {
+                      $set: {
+                        userId: userId,
+                        type: favoriteType,
+                        itemId: favoriteId,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                      }
+                    },
+                    { upsert: true } // Crear si no existe
                   );
+
+                  logger.info(`✅ Favorite added for user: ${userId}`, {
+                    type: favoriteType,
+                    itemId: favoriteId,
+                    upserted: result.upsertedCount,
+                    modified: result.modifiedCount
+                  });
+
+                } else if (action === 'remove') {
+                  // Eliminar favorito
+                  const result = await db.collection('favorites').deleteOne({
+                    userId: userId,
+                    type: favoriteType,
+                    itemId: favoriteId
+                  });
+
+                  logger.info(`✅ Favorite removed for user: ${userId}`, {
+                    type: favoriteType,
+                    itemId: favoriteId,
+                    deleted: result.deletedCount
+                  });
                 } else {
-                  await db.collection('users').updateOne(
-                    { _id: message.userId },
-                    { $pull: { [updateField]: favoriteId } }
-                  );
+                  logger.warn(`Unknown favorite action: ${action}`);
                 }
-                logger.info(`Favorite ${action}ed for user:`, message.userId);
               } catch (error) {
-                logger.error('Error processing favorite:', error);
+                logger.error('❌ Error processing favorite:', error);
+                throw error;
+              }
+              break;
+
+            case 'alert':
+              try {
+                const { type, targetId, condition, value } = message.data;
+                const userId = message.userId;
+
+                await db.collection('alerts').insertOne({
+                  userId,
+                  type,
+                  targetId,
+                  condition,
+                  value,
+                  active: true,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                });
+
+                logger.info(`Alert created for user: ${userId}`, { type });
+              } catch (error) {
+                logger.error('Error processing alert:', error);
                 throw error;
               }
               break;
@@ -171,8 +237,23 @@ async function startQueueWorker() {
                   ...message.data,
                   timestamp: new Date()
                 });
+                logger.info('Search history saved for user:', message.userId);
               } catch (error) {
                 logger.error('Error saving search history:', error);
+                throw error;
+              }
+              break;
+
+            case 'prediction':
+              try {
+                await db.collection('predictions').insertOne({
+                  userId: message.userId,
+                  ...message.data,
+                  timestamp: new Date()
+                });
+                logger.info('Prediction saved for user:', message.userId);
+              } catch (error) {
+                logger.error('Error saving prediction:', error);
                 throw error;
               }
               break;
@@ -188,8 +269,15 @@ async function startQueueWorker() {
         }
       );
     });
+
+    logger.info('✅ Queue worker started successfully');
   } catch (error) {
-    logger.error('Error starting queue worker:', error);
+    logger.error('❌ Error starting queue worker:', error);
+    // Reintentar después de 10 segundos
+    setTimeout(() => {
+      logger.info('Retrying queue worker initialization...');
+      startQueueWorker();
+    }, 10000);
   }
 }
 
@@ -218,7 +306,7 @@ async function start() {
     setInterval(async () => {
       const { checkMongoDBHealth } = require('./config/database');
       const { mongoDBCircuitBreaker } = require('./utils/circuitBreaker');
-      
+
       const isHealthy = await checkMongoDBHealth();
       if (!isHealthy) {
         logger.warn('MongoDB health check failed');
@@ -238,7 +326,7 @@ process.on('SIGTERM', async () => {
   const { closeConnections } = require('./config/database');
   const { closeRedis } = require('./config/redis');
   const { closeRabbitMQ } = require('./config/rabbitmq');
-  
+
   await Promise.all([
     closeConnections(),
     closeRedis(),
@@ -248,4 +336,3 @@ process.on('SIGTERM', async () => {
 });
 
 start();
-

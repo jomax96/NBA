@@ -72,8 +72,8 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { 
-        id: user._id.toString(), 
+      {
+        id: user._id.toString(),
         email: user.email,
         provider: user.provider || 'local'
       },
@@ -105,6 +105,7 @@ router.post('/login', async (req, res) => {
 
 /**
  * Obtener favoritos del usuario (requiere autenticación)
+ * CORREGIDO: Mapear campos de MongoDB a formato esperado por frontend
  */
 router.get('/favorites', require('../middleware/auth').authenticate, async (req, res) => {
   try {
@@ -115,7 +116,17 @@ router.get('/favorites', require('../middleware/auth').authenticate, async (req,
     const favorites = await mongoDBCircuitBreaker.execute(
       async () => {
         if (!db) throw new Error('MongoDB connection not available');
-        return await db.collection('favorites').find({ userId }).toArray();
+        const docs = await db.collection('favorites').find({ userId }).toArray();
+
+        // IMPORTANTE: Mapear campos de MongoDB a formato esperado por frontend
+        return docs.map(fav => ({
+          _id: fav._id,
+          userId: fav.userId,
+          favoriteType: fav.type,      // type -> favoriteType
+          favoriteId: fav.itemId,      // itemId -> favoriteId
+          createdAt: fav.createdAt,
+          updatedAt: fav.updatedAt
+        }));
       },
       async () => {
         // Fallback: retornar vacío
@@ -145,7 +156,7 @@ router.post('/favorites', require('../middleware/auth').authenticate, async (req
   try {
     const userId = req.user._id.toString();
     const { type, id, action = 'add' } = req.body;
-    
+
     if (!type || !id) {
       return res.status(400).json({
         success: false,
@@ -305,4 +316,3 @@ router.get('/profile', require('../middleware/auth').authenticate, async (req, r
 });
 
 module.exports = router;
-
