@@ -149,6 +149,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Exportar app para tests
+module.exports = app;
+
 // Inicialización
 async function start() {
   await initMongoDB();
