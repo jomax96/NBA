@@ -7,52 +7,64 @@ function AuthCallback() {
   const navigate = useNavigate();
   const { handleGoogleCallback } = useAuth();
   const [status, setStatus] = useState('Procesando autenticación...');
-  const hasNavigated = useRef(false);
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
     // Prevenir múltiples ejecuciones
-    if (hasNavigated.current) return;
-    
-    const token = searchParams.get('token');
-    const error = searchParams.get('error');
-    const temp = searchParams.get('temp');
-    let timeoutId;
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
 
-    if (error) {
-      setStatus(`Error de autenticación: ${error}`);
-      hasNavigated.current = true;
-      timeoutId = setTimeout(() => {
-        navigate('/login', { replace: true });
-      }, 3000);
-      return () => clearTimeout(timeoutId);
-    }
+    const processAuth = async () => {
+      const token = searchParams.get('token');
+      const error = searchParams.get('error');
+      const temp = searchParams.get('temp');
 
-    if (token) {
-      handleGoogleCallback(token);
-      setStatus(temp ? 'Autenticación en proceso. Esperando confirmación...' : 'Autenticación exitosa. Redirigiendo...');
-      
-      // Esperar más tiempo para que la verificación del token se complete
-      const delay = temp ? 4000 : 2500;
-      hasNavigated.current = true;
-      timeoutId = setTimeout(() => {
-        // Verificar si hay token antes de redirigir
-        const savedToken = localStorage.getItem('token');
-        if (savedToken) {
+      // Manejo de errores
+      if (error) {
+        setStatus(`Error de autenticación: ${error}`);
+        setTimeout(() => {
+          navigate('/login', { replace: true });
+        }, 3000);
+        return;
+      }
+
+      // Sin token
+      if (!token) {
+        setStatus('No se recibió token. Redirigiendo al login...');
+        setTimeout(() => {
+          navigate('/login', { replace: true });
+        }, 3000);
+        return;
+      }
+
+      // Procesar token
+      try {
+        setStatus(temp ? 'Autenticación en proceso. Esperando confirmación...' : 'Autenticación exitosa. Redirigiendo...');
+
+        // ESPERAR a que handleGoogleCallback termine completamente
+        const success = await handleGoogleCallback(token);
+
+        if (success) {
+          // Token verificado exitosamente - redirigir al dashboard
           navigate('/', { replace: true });
         } else {
-          navigate('/login', { replace: true });
+          // Si no se pudo verificar, redirigir al login
+          setStatus('Error al verificar autenticación. Redirigiendo al login...');
+          setTimeout(() => {
+            navigate('/login', { replace: true });
+          }, 2000);
         }
-      }, delay);
-      return () => clearTimeout(timeoutId);
-    } else {
-      setStatus('No se recibió token. Redirigiendo al login...');
-      hasNavigated.current = true;
-      timeoutId = setTimeout(() => {
-        navigate('/login', { replace: true });
-      }, 3000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [searchParams, navigate, handleGoogleCallback]);
+      } catch (error) {
+        console.error('Error procesando autenticación:', error);
+        setStatus('Error al procesar autenticación. Redirigiendo al login...');
+        setTimeout(() => {
+          navigate('/login', { replace: true });
+        }, 2000);
+      }
+    };
+
+    processAuth();
+  }, []); // Sin dependencias - ejecutar solo una vez
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -65,4 +77,3 @@ function AuthCallback() {
 }
 
 export default AuthCallback;
-
