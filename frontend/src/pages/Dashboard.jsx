@@ -12,10 +12,10 @@ function Dashboard() {
     const fetchStats = async () => {
       try {
         const [teamsRes, playersRes] = await Promise.all([
-          axios.get('/api/teams'),
-          axios.get('/api/players/top')
+          axios.get('teams'),
+          axios.get('players/top')
         ]);
-        
+
         setStats({
           teams: teamsRes.data.data?.length || 0,
           players: playersRes.data.data?.length || 0,
@@ -38,7 +38,7 @@ function Dashboard() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-8">NBA Analytics Hub</h1>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-2xl font-semibold mb-2">Teams</h2>
@@ -62,7 +62,7 @@ function Dashboard() {
           Explore statistics, predictions, and insights about NBA teams and players.
           Navigate using the menu above to access different sections.
         </p>
-        
+
         {!isAuthenticated && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-gray-700 mb-2">

@@ -37,9 +37,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return;
     }
-    
+
     console.log('Verifying token, length:', storedToken.length);
-    
+
     try {
       // Asegurarse de que el header Authorization se envíe explícitamente
       const response = await axios.get('/auth/verify', {
@@ -48,9 +48,9 @@ export const AuthProvider = ({ children }) => {
           'Authorization': `Bearer ${storedToken}`
         }
       });
-      
+
       console.log('Token verification response:', response.status, response.data);
-      
+
       if (response.data && response.data.success && response.data.user) {
         setUser(response.data.user);
         setToken(storedToken);
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }) => {
         message: error.message,
         requestHeaders: error.config?.headers
       });
-      
+
       // Token inválido o expirado - solo hacer logout si es 401
       if (error.response?.status === 401) {
         const errorData = error.response?.data;
@@ -138,11 +138,11 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let mounted = true;
     let isVerifying = false;
-    
+
     const verify = async () => {
       // Solo verificar si hay token en localStorage
       const storedToken = localStorage.getItem('token');
-      
+
       if (storedToken && !isVerifying && mounted) {
         isVerifying = true;
         try {
@@ -164,9 +164,9 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     };
-    
+
     verify();
-    
+
     return () => {
       mounted = false;
     };
@@ -217,50 +217,47 @@ export const AuthProvider = ({ children }) => {
 
 
   const handleGoogleCallback = useCallback(async (tokenFromUrl) => {
-    if (!tokenFromUrl) return;
-    
-    // Evitar múltiples llamadas con el mismo token
-    const currentToken = localStorage.getItem('token');
-    if (currentToken === tokenFromUrl && user) {
-      return; // Ya está procesado
+    if (!tokenFromUrl) {
+      return false;
     }
-    
-    // Guardar token
-    localStorage.setItem('token', tokenFromUrl);
-    setToken(tokenFromUrl);
-    
-    // Marcar que estamos procesando este token
-    if (!handleGoogleCallback.processing) {
-      handleGoogleCallback.processing = new Set();
-    }
-    
-    if (handleGoogleCallback.processing.has(tokenFromUrl)) {
-      return; // Ya está procesando este token
-    }
-    
-    handleGoogleCallback.processing.add(tokenFromUrl);
-    
-    // Verificar token después de un pequeño delay para dar tiempo a MongoDB
-    setTimeout(async () => {
-      try {
-        // Enviar header Authorization explícitamente
-        const response = await axios.get('/auth/verify', {
-          headers: {
-            'Authorization': `Bearer ${tokenFromUrl}`
-          }
-        });
-        if (response.data.success && response.data.user) {
-          setUser(response.data.user);
-          localStorage.setItem('user', JSON.stringify(response.data.user));
+
+    try {
+      // Guardar token inmediatamente
+      localStorage.setItem('token', tokenFromUrl);
+      setToken(tokenFromUrl);
+
+      // Pequeño delay para dar tiempo a MongoDB si es necesario
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Verificar el token con el backend
+      const response = await axios.get('/auth/verify', {
+        headers: {
+          'Authorization': `Bearer ${tokenFromUrl}`
         }
-      } catch (error) {
-        console.error('Error verifying token after Google auth:', error);
-        // No hacer logout aquí, el token puede ser válido pero el usuario aún no existe
-      } finally {
-        handleGoogleCallback.processing.delete(tokenFromUrl);
+      });
+
+      if (response.data.success && response.data.user) {
+        setUser(response.data.user);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        console.log('Google auth successful for user:', response.data.user.email);
+        return true;
+      } else {
+        console.error('Unexpected response from verify endpoint:', response.data);
+        logout();
+        return false;
       }
-    }, 2000);
-  }, [user]);
+    } catch (error) {
+      console.error('Error verifying token after Google auth:', error);
+
+      if (error.response?.status === 401) {
+        logout();
+        return false;
+      }
+
+      console.log('Non-401 error, keeping token for retry');
+      return false;
+    }
+  }, [logout]);
 
   const value = {
     user,

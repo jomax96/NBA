@@ -11,11 +11,11 @@ let mongoDb = null;
 async function initMySQL() {
   try {
     mysqlPool = mysql.createPool({
-      host: process.env.MYSQL_HOST || 'localhost',
-      user: process.env.MYSQL_USER || 'nba_user',
-      password: process.env.MYSQL_PASSWORD || 'nba_password',
-      database: process.env.MYSQL_DATABASE || 'nba_db',
-      port: process.env.MYSQL_PORT || 3306,
+      host: process.env.MYSQL_HOST,
+      user: process.env.MYSQL_USER,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DATABASE,
+      port: process.env.MYSQL_PORT,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
@@ -27,7 +27,7 @@ async function initMySQL() {
     const connection = await mysqlPool.getConnection();
     await connection.ping();
     connection.release();
-    
+
     console.log('✅ MySQL connected successfully');
     return mysqlPool;
   } catch (error) {
@@ -50,7 +50,7 @@ async function initMongoDB() {
 
     await mongoClient.connect();
     mongoDb = mongoClient.db('nba_users');
-    
+
     console.log('✅ MongoDB connected successfully');
     return mongoDb;
   } catch (error) {

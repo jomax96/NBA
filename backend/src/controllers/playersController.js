@@ -10,7 +10,6 @@ async function getTopPlayers(req, res) {
   try {
     const cacheKey = 'players:top100';
 
-    // Intentar desde caché
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
@@ -21,20 +20,27 @@ async function getTopPlayers(req, res) {
       });
     }
 
-    // Desde BD
     const players = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
         if (!pool) throw new Error('MySQL pool not available');
-        
+
         const [rows] = await pool.execute(
           `SELECT 
-            p.player_id, p.player_name, p.position, p.height, p.weight,
-            t.team_name, t.abbreviation as team_abbr
-           FROM players p
-           LEFT JOIN teams t ON p.team_id = t.team_id
-           ORDER BY p.player_name
-           LIMIT 100`
+            p.id as player_id,
+            p.full_name AS player_name,
+            dc.position,
+            t.full_name AS team_name,
+            t.abbreviation as team_abbr,
+            dc.height_w_shoes_ft_in AS height,
+            dc.weight
+          FROM player p
+          INNER JOIN draft_combine_stats dc ON p.id = dc.player_id
+          INNER JOIN draft_history dh ON p.id = dh.person_id
+          INNER JOIN team t ON dh.team_id = t.id
+          WHERE p.is_active = 1
+          ORDER BY p.full_name
+          LIMIT 100`
         );
         return rows;
       },
@@ -44,7 +50,7 @@ async function getTopPlayers(req, res) {
       }
     );
 
-    await cacheService.set(cacheKey, players, 300); // 5 minutos
+    await cacheService.set(cacheKey, players, 300);
 
     res.json({
       success: true,
@@ -70,7 +76,6 @@ async function getPlayerStats(req, res) {
     const { playerId } = req.params;
     const cacheKey = `player:stats:${playerId}`;
 
-    // Intentar desde caché
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
@@ -81,25 +86,33 @@ async function getPlayerStats(req, res) {
       });
     }
 
-    // Desde BD
     const stats = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
         if (!pool) throw new Error('MySQL pool not available');
-        
+
         const [rows] = await pool.execute(
           `SELECT 
-            p.player_id, p.player_name, p.position, p.height, p.weight,
-            t.team_name, t.abbreviation as team_abbr,
-            AVG(gp.points) as avg_points,
-            AVG(gp.rebounds) as avg_rebounds,
-            AVG(gp.assists) as avg_assists,
-            COUNT(gp.game_id) as games_played
-           FROM players p
-           LEFT JOIN teams t ON p.team_id = t.team_id
-           LEFT JOIN game_players gp ON p.player_id = gp.player_id
-           WHERE p.player_id = ?
-           GROUP BY p.player_id`,
+            p.id as player_id,
+            p.full_name as player_name,
+            p.first_name,
+            p.last_name,
+            dc.position,
+            dc.height_w_shoes_ft_in as height,
+            dc.weight,
+            t.id as team_id,
+            t.full_name as team_name,
+            t.abbreviation as team_abbr,
+            t.city as team_city,
+            dh.season as draft_year,
+            dh.round_number as draft_round,
+            dh.overall_pick as draft_number
+          FROM player p
+          LEFT JOIN draft_combine_stats dc ON p.id = dc.player_id
+          LEFT JOIN draft_history dh ON p.id = dh.person_id
+          LEFT JOIN team t ON dh.team_id = t.id
+          WHERE p.id = ?
+          LIMIT 1`,
           [playerId]
         );
         return rows[0] || null;
@@ -117,7 +130,7 @@ async function getPlayerStats(req, res) {
     res.json({
       success: true,
       data: stats,
-      source: 'database',
+      source: stats ? 'database' : 'cache',
       nodeId: process.env.NODE_ID
     });
   } catch (error) {
@@ -130,8 +143,155 @@ async function getPlayerStats(req, res) {
   }
 }
 
+/**
+ * Buscar jugadores por nombre
+ */
+async function searchPlayers(req, res) {
+  try {
+    const { query } = req.query;
+
+    if (!query || query.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query must be at least 2 characters',
+        nodeId: process.env.NODE_ID
+      });
+    }
+
+    const cacheKey = `players:search:${query.toLowerCase()}`;
+
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        source: 'cache',
+        nodeId: process.env.NODE_ID
+      });
+    }
+
+    const players = await mysqlCircuitBreaker.execute(
+      async () => {
+        const pool = getMySQLPool();
+        if (!pool) throw new Error('MySQL pool not available');
+
+        const searchTerm = `%${query}%`;
+        const [rows] = await pool.execute(
+          `SELECT 
+            p.id as player_id,
+            p.full_name as player_name,
+            dc.position,
+            t.full_name as team_name,
+            t.abbreviation as team_abbr,
+            dc.height_w_shoes_ft_in as height,
+            dc.weight
+          FROM player p
+          LEFT JOIN draft_combine_stats dc ON p.id = dc.player_id
+          LEFT JOIN draft_history dh ON p.id = dh.person_id
+          LEFT JOIN team t ON dh.team_id = t.id
+          WHERE p.full_name LIKE ? 
+            OR p.first_name LIKE ?
+            OR p.last_name LIKE ?
+          ORDER BY p.full_name
+          LIMIT 50`,
+          [searchTerm, searchTerm, searchTerm]
+        );
+        return rows;
+      },
+      async () => {
+        logger.warn('MySQL unavailable for player search');
+        return [];
+      }
+    );
+
+    await cacheService.set(cacheKey, players, 180);
+
+    res.json({
+      success: true,
+      data: players,
+      source: 'database',
+      nodeId: process.env.NODE_ID
+    });
+  } catch (error) {
+    logger.error('Error searching players:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error searching players',
+      nodeId: process.env.NODE_ID
+    });
+  }
+}
+
+/**
+ * Obtener jugadores por equipo
+ */
+async function getPlayersByTeam(req, res) {
+  try {
+    const { teamId } = req.params;
+    const cacheKey = `team:${teamId}:players`;
+
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        source: 'cache',
+        nodeId: process.env.NODE_ID
+      });
+    }
+
+    const players = await mysqlCircuitBreaker.execute(
+      async () => {
+        const pool = getMySQLPool();
+        if (!pool) throw new Error('MySQL pool not available');
+
+        const [rows] = await pool.execute(
+          `SELECT 
+            p.id as player_id,
+            p.full_name as player_name,
+            dc.position,
+            dc.height_w_shoes_ft_in as height,
+            dc.weight,
+            t.full_name as team_name,
+            t.abbreviation as team_abbr,
+            p.is_active
+          FROM player p
+          INNER JOIN draft_history dh ON p.id = dh.person_id
+          INNER JOIN team t ON dh.team_id = t.id
+          LEFT JOIN draft_combine_stats dc ON p.id = dc.player_id
+          WHERE t.id = ?
+          ORDER BY p.full_name`,
+          [teamId]
+        );
+        return rows;
+      },
+      async () => {
+        logger.warn(`MySQL unavailable for team players: ${teamId}`);
+        return [];
+      }
+    );
+
+    await cacheService.set(cacheKey, players, 300);
+
+    res.json({
+      success: true,
+      data: players,
+      source: 'database',
+      nodeId: process.env.NODE_ID
+    });
+  } catch (error) {
+    logger.error('Error getting team players:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error fetching team players',
+      nodeId: process.env.NODE_ID
+    });
+  }
+}
+
 module.exports = {
   getTopPlayers,
-  getPlayerStats
+  getPlayerStats,
+  searchPlayers,
+  getPlayersByTeam
 };
-
