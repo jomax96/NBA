@@ -8,7 +8,7 @@ function Profile() {
   const [favoritesDetails, setFavoritesDetails] = useState({ teams: [], players: [] });
   const [searchHistory, setSearchHistory] = useState([]);
   const [searchHistoryDetails, setSearchHistoryDetails] = useState([]);
-  const [alerts, setAlerts] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -20,10 +20,10 @@ function Profile() {
 
   const fetchUserData = async () => {
     try {
-      const [favoritesRes, historyRes, alertsRes] = await Promise.all([
+      const [favoritesRes, historyRes, notificationsRes] = await Promise.all([
         axios.get('users/favorites').catch(() => ({ data: { data: [] } })),
         axios.get('users/search-history?limit=20').catch(() => ({ data: { data: [] } })),
-        axios.get('users/alerts').catch(() => ({ data: { data: [] } }))
+        axios.get('users/notifications?limit=50').catch(() => ({ data: { data: [] } }))
       ]);
 
       const favs = favoritesRes.data.data || [];
@@ -31,7 +31,7 @@ function Profile() {
 
       setFavorites(favs);
       setSearchHistory(history);
-      setAlerts(alertsRes.data.data || []);
+      setNotifications(notificationsRes.data.data || []);
 
       // Obtener detalles de favoritos
       await fetchFavoritesDetails(favs);
@@ -190,6 +190,55 @@ function Profile() {
     }
   };
 
+  const formatNotificationType = (type) => {
+    const typeMap = {
+      'auth.login': { label: 'Inicio de Sesión', icon: '🔐', color: 'blue' },
+      'auth.register': { label: 'Registro', icon: '👤', color: 'green' },
+      'auth.logout': { label: 'Cierre de Sesión', icon: '🚪', color: 'gray' },
+      'favorite.added': { label: 'Favorito Agregado', icon: '⭐', color: 'yellow' },
+      'favorite.removed': { label: 'Favorito Eliminado', icon: '❌', color: 'red' },
+    };
+    return typeMap[type] || { label: type, icon: '📧', color: 'gray' };
+  };
+
+  const renderNotificationDetails = (notification) => {
+    const { type, data } = notification;
+
+    if (type === 'auth.login') {
+      return (
+        <div className="text-sm text-gray-600 mt-2 space-y-1">
+          <p><span className="font-medium">Email:</span> {data.email}</p>
+          <p><span className="font-medium">Proveedor:</span> {data.provider === 'google' ? 'Google' : 'Local'}</p>
+          {data.ip && <p><span className="font-medium">IP:</span> {data.ip}</p>}
+          {data.userAgent && (
+            <p className="text-xs text-gray-500 truncate" title={data.userAgent}>
+              <span className="font-medium">Navegador:</span> {data.userAgent.substring(0, 50)}...
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    if (type === 'auth.register') {
+      return (
+        <div className="text-sm text-gray-600 mt-2 space-y-1">
+          <p><span className="font-medium">Nombre:</span> {data.name}</p>
+          <p><span className="font-medium">Email:</span> {data.email}</p>
+          <p><span className="font-medium">Proveedor:</span> {data.provider === 'google' ? 'Google' : 'Local'}</p>
+        </div>
+      );
+    }
+
+    // Para otros tipos de notificaciones
+    return (
+      <div className="text-sm text-gray-600 mt-2">
+        <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -226,10 +275,10 @@ function Profile() {
 
           {/* Tabs */}
           <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
+            <nav className="flex -mb-px overflow-x-auto">
               <button
                 onClick={() => setActiveTab('profile')}
-                className={`px-6 py-4 text-sm font-medium ${activeTab === 'profile'
+                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'profile'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
@@ -238,7 +287,7 @@ function Profile() {
               </button>
               <button
                 onClick={() => setActiveTab('favorites')}
-                className={`px-6 py-4 text-sm font-medium ${activeTab === 'favorites'
+                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'favorites'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
@@ -247,7 +296,7 @@ function Profile() {
               </button>
               <button
                 onClick={() => setActiveTab('history')}
-                className={`px-6 py-4 text-sm font-medium ${activeTab === 'history'
+                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'history'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
@@ -255,13 +304,13 @@ function Profile() {
                 Historial ({searchHistory.length})
               </button>
               <button
-                onClick={() => setActiveTab('alerts')}
-                className={`px-6 py-4 text-sm font-medium ${activeTab === 'alerts'
+                onClick={() => setActiveTab('notifications')}
+                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'notifications'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
-                Alertas ({alerts.length})
+                📧 Notificaciones ({notifications.length})
               </button>
             </nav>
           </div>
@@ -460,21 +509,72 @@ function Profile() {
               </div>
             )}
 
-            {activeTab === 'alerts' && (
+            {activeTab === 'notifications' && (
               <div>
-                <h2 className="text-2xl font-semibold mb-4">Mis Alertas</h2>
-                {alerts.length === 0 ? (
+                <h2 className="text-2xl font-semibold mb-4">Historial de Notificaciones</h2>
+                {notifications.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-500 mb-2">No tienes alertas configuradas.</p>
-                    <p className="text-sm text-gray-400">Las alertas te notificarán sobre eventos importantes</p>
+                    <p className="text-gray-500 mb-2">No tienes notificaciones.</p>
+                    <p className="text-sm text-gray-400">Las notificaciones aparecerán aquí cuando se generen</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {alerts.map((alert, index) => (
-                      <div key={index} className="p-4 border rounded-lg">
-                        <p className="font-medium">{alert.type}: {alert.condition}</p>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    {notifications.map((notification) => {
+                      const typeInfo = formatNotificationType(notification.type);
+                      const statusColors = {
+                        sent: 'bg-green-100 text-green-800',
+                        pending: 'bg-yellow-100 text-yellow-800',
+                        failed: 'bg-red-100 text-red-800'
+                      };
+
+                      return (
+                        <div
+                          key={notification._id}
+                          className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-2xl">{typeInfo.icon}</span>
+                              <div>
+                                <h3 className="font-semibold text-gray-900">
+                                  {typeInfo.label}
+                                </h3>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <span className={`text-xs px-2 py-1 rounded-full ${statusColors[notification.status] || 'bg-gray-100 text-gray-800'}`}>
+                                    {notification.status === 'sent' ? '✓ Enviado' :
+                                      notification.status === 'pending' ? '⏳ Pendiente' :
+                                        notification.status === 'failed' ? '✗ Fallido' :
+                                          notification.status}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    📧 {notification.channel || 'email'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">
+                                {new Date(notification.sentAt).toLocaleDateString('es-ES', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {new Date(notification.sentAt).toLocaleTimeString('es-ES', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Detalles de la notificación */}
+                          {renderNotificationDetails(notification)}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

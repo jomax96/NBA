@@ -331,7 +331,10 @@ async function start() {
   });
 }
 
-start();
+// Solo iniciar el servidor si no estamos en modo test y el archivo se ejecuta directamente
+if (process.env.NODE_ENV !== 'test' && require.main === module) {
+  start();
+}
 
 // Manejo de señales
 process.on('SIGTERM', async () => {

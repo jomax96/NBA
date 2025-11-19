@@ -21,7 +21,7 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd "mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD || 'rootpassword' }}"
+          --health-cmd "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -119,6 +119,7 @@ jobs:
       - name: Run ML service unit tests
         working-directory: ./microservices/ml-predictions
         env:
+          PYTHONPATH: .
           MYSQL_HOST: localhost
           MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
