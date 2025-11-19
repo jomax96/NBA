@@ -94,7 +94,7 @@ async function checkMySQLHealth() {
 async function checkMongoDBHealth() {
   try {
     if (!mongoClient) return false;
-    await mongoClient.db('admin').command({ ping: 1 });
+    await mongoClient.db().command({ ping: 1 });
     return true;
   } catch (error) {
     return false;
