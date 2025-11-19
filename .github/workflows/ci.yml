@@ -119,6 +119,7 @@ jobs:
       - name: Run ML service unit tests
         working-directory: ./microservices/ml-predictions
         env:
+          PYTHONPATH: .
           MYSQL_HOST: localhost
           MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
