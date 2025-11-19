@@ -17,7 +17,7 @@ describe('E2E Test: Complete NBA Analytics Flow', () => {
     expect(response.status).toBe(200);
     expect(response.data.success).toBe(true);
     expect(Array.isArray(response.data.data)).toBe(true);
-    expect(response.data.data.length).toBeGreaterThan(0);
+    expect(response.data.data.length).toBeGreaterThan(0|[]);
   });
 
   test('3. Get Team Stats - Should return team statistics', async () => {
