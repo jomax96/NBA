@@ -63,7 +63,7 @@ async function initRabbitMQ() {
   }
 }
 
-/**
+/**ss
  * Publica mensaje en cola con reintentos
  */
 async function publishMessage(queueName, message, options = {}) {
@@ -168,11 +168,45 @@ async function closeRabbitMQ() {
   }
 }
 
+/**
+ * Publica mensaje en exchange de notificaciones
+ */
+async function publishNotification(routingKey, message) {
+  try {
+    if (!channel) {
+      logger.warn('Channel not available for publishing notification');
+      return false;
+    }
+
+    await channel.assertExchange('notifications.events', 'topic', { durable: true });
+
+    const messageBuffer = Buffer.from(JSON.stringify(message));
+
+    const sent = channel.publish(
+      'notifications.events',
+      routingKey,
+      messageBuffer,
+      { persistent: true }
+    );
+
+    if (sent) {
+      logger.info(`Notification published with routing key: ${routingKey}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    logger.error('Error publishing notification:', error);
+    return false;
+  }
+}
+
 module.exports = {
   initRabbitMQ,
   publishMessage,
   consumeMessages,
   checkRabbitMQHealth,
   closeRabbitMQ,
+  publishNotification,
   QUEUE_NAME
+
 };
