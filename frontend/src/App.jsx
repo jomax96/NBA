@@ -15,10 +15,10 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-black">
           <Navbar />
           <Routes>
-            {/* Rutas públicas */}
+            {/* Public Routes */}
             <Route path="/" element={<Dashboard />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/players" element={<Players />} />
@@ -26,7 +26,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             
-            {/* Rutas protegidas - Solo usuarios autenticados */}
+            {/* Protected Routes - Authenticated Users Only */}
             <Route
               path="/predictions"
               element={
@@ -36,7 +36,6 @@ function App() {
               }
             />
             
-            {/* Rutas protegidas */}
             <Route
               path="/profile"
               element={
@@ -53,4 +52,3 @@ function App() {
 }
 
 export default App;
-
