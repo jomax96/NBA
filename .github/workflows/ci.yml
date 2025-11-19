@@ -14,14 +14,14 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: rootpassword
-          MYSQL_DATABASE: nba_db
-          MYSQL_USER: nba_user
-          MYSQL_PASSWORD: nba_password
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE || 'nba_db' }}
+          MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
         ports:
           - 3306:3306
         options: >-
-          --health-cmd "mysqladmin ping -h localhost -u root -prootpassword"
+          --health-cmd "mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD || 'rootpassword' }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -29,8 +29,8 @@ jobs:
       mongodb:
         image: mongo:7.0
         env:
-          MONGO_INITDB_ROOT_USERNAME: admin
-          MONGO_INITDB_ROOT_PASSWORD: adminpassword
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGODB_ROOT_USERNAME || 'admin' }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGODB_ROOT_PASSWORD }}
         ports:
           - 27017:27017
         options: >-
@@ -52,8 +52,8 @@ jobs:
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
-          RABBITMQ_DEFAULT_USER: admin
-          RABBITMQ_DEFAULT_PASS: adminpassword
+          RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_USER || 'admin' }}
+          RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_PASSWORD }}
         ports:
           - 5672:5672
         options: >-
@@ -104,25 +104,25 @@ jobs:
         env:
           NODE_ENV: test
           MYSQL_HOST: localhost
-          MYSQL_USER: nba_user
-          MYSQL_PASSWORD: nba_password
-          MYSQL_DATABASE: nba_db
-          MONGODB_URI: mongodb://admin:adminpassword@localhost:27017/nba_users?authSource=admin
+          MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE || 'nba_db' }}
+          MONGODB_URI: mongodb://${{ secrets.MONGODB_ROOT_USERNAME || 'admin' }}:${{ secrets.MONGODB_ROOT_PASSWORD }}@localhost:27017/nba_users?authSource=admin
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           RABBITMQ_HOST: localhost
-          RABBITMQ_USER: admin
-          RABBITMQ_PASS: adminpassword
-          JWT_SECRET: test-secret-key
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER || 'admin' }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: npm test -- --coverage --verbose
 
       - name: Run ML service unit tests
         working-directory: ./microservices/ml-predictions
         env:
           MYSQL_HOST: localhost
-          MYSQL_USER: nba_user
-          MYSQL_PASSWORD: nba_password
-          MYSQL_DATABASE: nba_db
+          MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE || 'nba_db' }}
         run: pytest tests/ -v --tb=short
 
       - name: Run notifications service unit tests
@@ -132,9 +132,9 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           RABBITMQ_HOST: localhost
-          RABBITMQ_USER: admin
-          RABBITMQ_PASS: adminpassword
-          MONGODB_URI: mongodb://admin:adminpassword@localhost:27017/nba_users?authSource=admin
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER || 'admin' }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASSWORD }}
+          MONGODB_URI: mongodb://${{ secrets.MONGODB_ROOT_USERNAME || 'admin' }}:${{ secrets.MONGODB_ROOT_PASSWORD }}@localhost:27017/nba_users?authSource=admin
         run: npm test -- --coverage --verbose
 
       - name: Start backend server for E2E tests
@@ -142,16 +142,16 @@ jobs:
         env:
           NODE_ENV: test
           MYSQL_HOST: localhost
-          MYSQL_USER: nba_user
-          MYSQL_PASSWORD: nba_password
-          MYSQL_DATABASE: nba_db
-          MONGODB_URI: mongodb://admin:adminpassword@localhost:27017/nba_users?authSource=admin
+          MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE || 'nba_db' }}
+          MONGODB_URI: mongodb://${{ secrets.MONGODB_ROOT_USERNAME || 'admin' }}:${{ secrets.MONGODB_ROOT_PASSWORD }}@localhost:27017/nba_users?authSource=admin
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           RABBITMQ_HOST: localhost
-          RABBITMQ_USER: admin
-          RABBITMQ_PASS: adminpassword
-          JWT_SECRET: test-secret-key
+          RABBITMQ_USER: ${{ secrets.RABBITMQ_USER || 'admin' }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           PORT: 3000
         run: |
           npm start > server.log 2>&1 &
@@ -180,9 +180,9 @@ jobs:
         env:
           API_URL: http://localhost:3000
           MYSQL_HOST: localhost
-          MYSQL_USER: nba_user
-          MYSQL_PASSWORD: nba_password
-          MYSQL_DATABASE: nba_db
+          MYSQL_USER: ${{ secrets.MYSQL_USER || 'nba_user' }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE || 'nba_db' }}
         run: npm test -- --verbose
 
       - name: Stop backend server
@@ -197,4 +197,54 @@ jobs:
           echo "- ✅ ML Predictions: Tests unitarios ejecutados" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Notifications: Tests unitarios ejecutados" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ E2E: Test de integración completo ejecutado" >> $GITHUB_STEP_SUMMARY
+
+  build-docker:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: false
+          tags: nba-backend:latest
+          cache-from: type=registry,ref=nba-backend:latest
+          cache-to: type=inline
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: false
+          tags: nba-frontend:latest
+
+      - name: Build ML predictions image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./microservices/ml-predictions
+          push: false
+          tags: nba-ml-predictions:latest
+
+      - name: Build notifications image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./microservices/notifications
+          push: false
+          tags: nba-notifications:latest
+
+      - name: Build summary
+        run: |
+          echo "## Docker Images construidas" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backend: nba-backend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Frontend: nba-frontend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ ML Predictions: nba-ml-predictions:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Notifications: nba-notifications:latest" >> $GITHUB_STEP_SUMMARY
 
