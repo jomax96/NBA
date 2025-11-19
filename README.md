@@ -1,4 +1,4 @@
-# NBA Analytics Hub
+# NBA Analytics Hub 
 
 Plataforma web interactiva para explorar estadísticas históricas y en tiempo real de la NBA con arquitectura distribuida y alta disponibilidad.
 

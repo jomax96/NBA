@@ -6,6 +6,57 @@ const { getMongoDB } = require('../config/database');
 const queueService = require('../services/queueService');
 const { mongoDBCircuitBreaker } = require('../utils/circuitBreaker');
 const logger = require('../utils/logger');
+const { publishMessage } = require('../config/rabbitmq');
+
+/**
+ * Función helper para publicar notificación de registro
+ */
+async function publishRegistrationNotification(userId, userData) {
+  try {
+    const { publishMessage } = require('../config/rabbitmq');
+
+    await publishMessage('notifications.queue', {
+      userId: userId,
+      type: 'auth.register',
+      data: {
+        name: userData.name,
+        email: userData.email, // IMPORTANTE: Incluir email
+        provider: userData.provider || 'local',
+        timestamp: new Date().toISOString()
+      }
+    });
+    logger.info('Registration notification published for user:', userId);
+  } catch (error) {
+    logger.error('Error publishing registration notification:', error);
+    // No lanzar error - la notificación no es crítica
+  }
+}
+
+/**
+ * Función helper para publicar notificación de login
+ */
+async function publishLoginNotification(userId, loginData) {
+  try {
+    const { publishMessage } = require('../config/rabbitmq');
+
+    await publishMessage('notifications.queue', {
+      userId: userId,
+      type: 'auth.login',
+      data: {
+        email: loginData.email, // IMPORTANTE: Incluir email como fallback
+        provider: loginData.provider || 'local',
+        ip: loginData.ip,
+        userAgent: loginData.userAgent,
+        timezone: loginData.timezone || 'UTC',
+        timestamp: new Date().toISOString()
+      }
+    });
+    logger.info('Login notification published for user:', userId);
+  } catch (error) {
+    logger.error('Error publishing login notification:', error);
+    // No lanzar error - la notificación no es crítica
+  }
+}
 
 /**
  * Rutas públicas de autenticación
@@ -25,7 +76,7 @@ router.get('/google', (req, res) => {
       instructions: 'Contacta al administrador o revisa la documentación en docs/GOOGLE_OAUTH_SETUP.md'
     });
   }
-  
+
   // Si está configurado, usar passport (la estrategia debe estar registrada)
   try {
     return passport.authenticate('google', {
@@ -62,7 +113,6 @@ router.get(
           provider: 'google'
         });
 
-        // Generar token temporal (se validará cuando MongoDB recupere)
         const tempToken = jwt.sign(
           { email: user.email, provider: 'google', temp: true },
           process.env.JWT_SECRET || 'secret',
@@ -72,14 +122,15 @@ router.get(
         return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost'}/auth/callback?token=${tempToken}&temp=true`);
       }
 
+      let isNewUser = false;
+
       // Verificar si el usuario ya existe o crear uno nuevo
       let finalUser = await mongoDBCircuitBreaker.execute(
         async () => {
           if (!db) {
             throw new Error('MongoDB connection not available');
           }
-          
-          // Buscar usuario existente
+
           const existingUser = await db.collection('users').findOne({
             $or: [
               { googleId: user.googleId },
@@ -88,7 +139,6 @@ router.get(
           });
 
           if (existingUser) {
-            // Si existe pero no tiene googleId, actualizarlo
             if (!existingUser.googleId) {
               await db.collection('users').updateOne(
                 { _id: existingUser._id },
@@ -98,7 +148,8 @@ router.get(
             return existingUser;
           }
 
-          // Crear nuevo usuario directamente (síncrono)
+          // Crear nuevo usuario
+          isNewUser = true;
           const userData = {
             googleId: user.googleId,
             email: user.email,
@@ -115,7 +166,6 @@ router.get(
           };
         },
         async () => {
-          // MongoDB no disponible - encolar y generar token temporal
           logger.warn('MongoDB unavailable, enqueuing user registration');
           const userData = {
             googleId: user.googleId,
@@ -125,16 +175,35 @@ router.get(
             provider: 'google'
           };
           await queueService.enqueueUserRegistration(userData);
-          
-          // Retornar null para generar token temporal
           return null;
         }
       );
 
+      // Enviar notificación apropiada
+      if (finalUser) {
+        const userId = finalUser._id.toString();
+
+        if (isNewUser) {
+          // Notificación de registro
+          await publishRegistrationNotification(userId, {
+            name: finalUser.name,
+            email: finalUser.email,
+            provider: 'google'
+          });
+        } else {
+          // Notificación de login
+          await publishLoginNotification(userId, {
+            email: finalUser.email, // AGREGAR ESTO
+            provider: 'google',
+            ip: req.ip || req.headers['x-forwarded-for'],
+            userAgent: req.headers['user-agent']
+          });
+        }
+      }
+
       // Generar JWT
       let token;
       if (finalUser) {
-        // Usuario existe o fue creado - token normal
         token = jwt.sign(
           {
             id: finalUser._id.toString(),
@@ -145,7 +214,6 @@ router.get(
           { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
         );
       } else {
-        // MongoDB caído - token temporal basado en email
         token = jwt.sign(
           {
             email: user.email,
@@ -157,7 +225,6 @@ router.get(
         );
       }
 
-      // Redirigir al frontend con el token
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost';
       res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
     } catch (error) {
@@ -175,7 +242,7 @@ router.get('/verify', async (req, res, next) => {
   const authHeader = req.headers.authorization;
   logger.info('Verifying token - authHeader:', authHeader ? `present: ${authHeader.substring(0, 30)}...` : 'missing');
   logger.info('All headers:', JSON.stringify(req.headers));
-  
+
   if (!authHeader) {
     logger.warn('No Authorization header found');
     return res.status(401).json({
@@ -184,7 +251,7 @@ router.get('/verify', async (req, res, next) => {
       debug: 'Authorization header missing'
     });
   }
-  
+
   if (!authHeader.startsWith('Bearer ')) {
     logger.warn('Authorization header does not start with Bearer, value:', authHeader.substring(0, 50));
     return res.status(401).json({
@@ -193,10 +260,10 @@ router.get('/verify', async (req, res, next) => {
       debug: 'Authorization header must start with "Bearer "'
     });
   }
-  
+
   const token = authHeader.substring(7).trim(); // Remover "Bearer " y espacios
   logger.info('Token extracted, length:', token.length, 'First 20 chars:', token.substring(0, 20));
-  
+
   // Verificar que el token sea una cadena válida
   if (!token || typeof token !== 'string' || token.length === 0) {
     logger.error('Invalid token format - not a string or empty');
@@ -205,13 +272,13 @@ router.get('/verify', async (req, res, next) => {
       error: 'Invalid token format'
     });
   }
-  
+
   // Verificar el token manualmente primero para debug
   try {
     const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
     logger.info('Token decoded successfully, payload:', { id: decoded.id, email: decoded.email });
-    
+
     // Si el token es válido, buscar el usuario
     const db = getMongoDB();
     if (!db) {
@@ -220,7 +287,7 @@ router.get('/verify', async (req, res, next) => {
         error: 'Database unavailable'
       });
     }
-    
+
     const { ObjectId } = require('mongodb');
     const userId = decoded.id;
     const user = await mongoDBCircuitBreaker.execute(
@@ -234,7 +301,7 @@ router.get('/verify', async (req, res, next) => {
         return null;
       }
     );
-    
+
     if (!user) {
       logger.warn('User not found for token, userId:', userId);
       return res.status(401).json({
@@ -242,7 +309,7 @@ router.get('/verify', async (req, res, next) => {
         error: 'User not found'
       });
     }
-    
+
     logger.info('Token verified successfully for user:', user.email);
     req.user = user;
     return res.json({
