@@ -85,7 +85,8 @@ router.post('/predict', authenticate, async (req, res) => {
       if (mlError.code === 'ECONNREFUSED' ||
         mlError.code === 'ETIMEDOUT' ||
         mlError.code === 'ENOTFOUND' ||
-        mlError.code === 'ECONNRESET') {
+        mlError.code === 'ECONNRESET' ||
+        mlError.code === 'EAI_AGAIN') {
 
         logger.warn('ML service unavailable, returning fallback response', {
           homeTeamId: homeId,

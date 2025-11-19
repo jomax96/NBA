@@ -36,7 +36,11 @@ describe('E2E Test: Complete NBA Analytics Flow', () => {
 
   test('5. Search Games - Should return filtered games', async () => {
     const response = await axios.get(`${BASE_URL}/api/games/search`, {
-      params: { limit: 10 }
+      params: { 
+        homeTeamId: 1,
+        awayTeamId: 2,
+        limit: 10 
+      }
     });
     expect(response.status).toBe(200);
     expect(response.data.success).toBe(true);
@@ -51,7 +55,9 @@ describe('E2E Test: Complete NBA Analytics Flow', () => {
     });
     expect(response.status).toBe(200);
     expect(response.data.success).toBe(true);
-    expect(response.data.message).toContain('queued');
+    // Puede ser "queued" o "registered successfully" dependiendo de si MongoDB está disponible
+    const msg = response.data.message.toLowerCase();
+    expect(msg.includes('queued') || msg.includes('successfully')).toBe(true);
   });
 
   test('7. User Login - Should authenticate and return token', async () => {
@@ -105,9 +111,16 @@ describe('E2E Test: Complete NBA Analytics Flow', () => {
   });
 
   test('9. Get Prediction - Should return ML prediction', async () => {
+    if (!authToken) {
+      throw new Error('No auth token available');
+    }
     const response = await axios.post(`${BASE_URL}/api/predictions/predict`, {
       homeTeamId: 1,
       visitorTeamId: 2
+    }, {
+      headers: {
+        Authorization: `Bearer ${authToken}`
+      }
     });
 
     expect(response.status).toBe(200);
