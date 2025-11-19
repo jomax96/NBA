@@ -177,3 +177,6 @@ certs/
 .local/
 local/
 *.local
+
+# PIDs
+*.pid
