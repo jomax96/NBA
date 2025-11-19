@@ -388,6 +388,63 @@ router.get('/search-history', require('../middleware/auth').authenticate, async 
 });
 
 /**
+ * ============= NUEVO ENDPOINT: NOTIFICACIONES =============
+ * Obtener historial de notificaciones del usuario (requiere autenticación)
+ */
+router.get('/notifications', require('../middleware/auth').authenticate, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { limit = 50 } = req.query;
+    const { mongoDBCircuitBreaker } = require('../utils/circuitBreaker');
+    const db = getMongoDB();
+
+    const notifications = await mongoDBCircuitBreaker.execute(
+      async () => {
+        if (!db) throw new Error('MongoDB connection not available');
+
+        // Buscar notificaciones por userId (como string o ObjectId)
+        const { ObjectId } = require('mongodb');
+        let query = { userId };
+
+        // Intentar también buscar por ObjectId si el userId es válido
+        if (ObjectId.isValid(userId)) {
+          query = {
+            $or: [
+              { userId: userId },
+              { userId: new ObjectId(userId) }
+            ]
+          };
+        }
+
+        return await db.collection('notifications')
+          .find(query)
+          .sort({ sentAt: -1 })
+          .limit(parseInt(limit))
+          .toArray();
+      },
+      async () => {
+        logger.warn('MongoDB unavailable, returning empty notifications');
+        return [];
+      }
+    );
+
+    res.json({
+      success: true,
+      data: notifications,
+      count: notifications.length,
+      nodeId: process.env.NODE_ID
+    });
+  } catch (error) {
+    logger.error('Error getting notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error getting notifications',
+      nodeId: process.env.NODE_ID
+    });
+  }
+});
+
+/**
  * Obtener alertas del usuario (requiere autenticación)
  */
 router.get('/alerts', require('../middleware/auth').authenticate, async (req, res) => {
