@@ -1,5 +1,5 @@
-const { getMySQLPool, checkMySQLHealth } = require('../config/database');
-const cacheService = require('../services/cacheService');
+const { getMySQLPool } = require('../config/database');
+const cacheService = require('../services/resilientCacheService');
 const { mysqlCircuitBreaker } = require('../utils/circuitBreaker');
 const logger = require('../utils/logger');
 
@@ -10,7 +10,7 @@ async function getAllTeams(req, res) {
   try {
     const cacheKey = 'teams:all';
 
-    // Intentar desde caché primero
+    // SIEMPRE intentar desde cache primero
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
@@ -21,7 +21,7 @@ async function getAllTeams(req, res) {
       });
     }
 
-    // Si no está en caché, intentar desde BD
+    // Si no hay cache, intentar desde BD
     const teams = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
@@ -33,26 +33,47 @@ async function getAllTeams(req, res) {
         return rows;
       },
       async () => {
-        // Fallback: retornar datos vacíos si BD está caída
-        logger.warn('MySQL unavailable, returning empty teams list from cache fallback');
-        return [];
+        // Fallback: retornar cache aunque esté viejo
+        logger.warn('MySQL unavailable, checking for stale cache');
+        const staleCache = await cacheService.get(cacheKey);
+        return staleCache || [];
       }
     );
 
-    // Guardar en caché
-    await cacheService.set(cacheKey, teams, 1800); // 30 minutos para datos históricos
+    // Guardar en caché con TTL largo (datos históricos)
+    if (teams && teams.length > 0) {
+      await cacheService.set(cacheKey, teams, 3600); // 1 hora
+    }
 
     res.json({
       success: true,
       data: teams,
-      source: 'database',
-      nodeId: process.env.NODE_ID
+      source: teams.length > 0 ? 'database' : 'fallback',
+      nodeId: process.env.NODE_ID,
+      warning: teams.length === 0 ? 'Database unavailable, no cached data' : null
     });
   } catch (error) {
     logger.error('Error getting teams:', error);
-    res.status(500).json({
+
+    // Último intento: devolver cache de emergencia
+    try {
+      const emergencyCache = await cacheService.get('teams:all');
+      if (emergencyCache) {
+        return res.json({
+          success: true,
+          data: emergencyCache,
+          source: 'emergency-cache',
+          nodeId: process.env.NODE_ID,
+          warning: 'Using cached data due to system issues'
+        });
+      }
+    } catch (cacheError) {
+      logger.error('Emergency cache also failed:', cacheError);
+    }
+
+    res.status(503).json({
       success: false,
-      error: 'Error fetching teams',
+      error: 'Service temporarily unavailable',
       nodeId: process.env.NODE_ID
     });
   }
@@ -120,24 +141,32 @@ async function getTeamStats(req, res) {
     );
 
     if (stats) {
-      await cacheService.set(cacheKey, stats, 300); // 5 minutos
+      await cacheService.set(cacheKey, stats, 600); // 10 minutos
+
+      return res.json({
+        success: true,
+        data: stats,
+        source: 'database',
+        nodeId: process.env.NODE_ID
+      });
     }
 
-    res.json({
-      success: true,
-      data: stats,
-      source: 'database',
+    // No hay datos
+    res.status(404).json({
+      success: false,
+      error: 'Team not found or database unavailable',
       nodeId: process.env.NODE_ID
     });
   } catch (error) {
     logger.error('Error getting team stats:', error);
-    res.status(500).json({
+    res.status(503).json({
       success: false,
-      error: 'Error fetching team statistics',
+      error: 'Service temporarily unavailable',
       nodeId: process.env.NODE_ID
     });
   }
 }
+
 module.exports = {
   getAllTeams,
   getTeamStats

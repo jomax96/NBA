@@ -1,5 +1,5 @@
 const { getMySQLPool } = require('../config/database');
-const cacheService = require('../services/cacheService');
+const cacheService = require('../services/resilientCacheService');
 const { mysqlCircuitBreaker } = require('../utils/circuitBreaker');
 const logger = require('../utils/logger');
 
@@ -10,16 +10,19 @@ async function getTopPlayers(req, res) {
   try {
     const cacheKey = 'players:top100';
 
+    // SIEMPRE intentar desde cache primero
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
         success: true,
         data: cached,
         source: 'cache',
-        nodeId: process.env.NODE_ID
+        nodeId: process.env.NODE_ID,
+        cacheAge: 'available'
       });
     }
 
+    // Si no hay cache, intentar BD
     const players = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
@@ -45,24 +48,47 @@ async function getTopPlayers(req, res) {
         return rows;
       },
       async () => {
-        logger.warn('MySQL unavailable, returning empty players list');
-        return [];
+        // Fallback: Devolver lo que haya en cache aunque esté viejo
+        logger.warn('MySQL unavailable for top players, using stale cache if available');
+        const staleCache = await cacheService.get(cacheKey);
+        return staleCache || [];
       }
     );
 
-    await cacheService.set(cacheKey, players, 300);
+    // Actualizar cache con datos frescos
+    if (players && players.length > 0) {
+      await cacheService.set(cacheKey, players, 600);
+    }
 
     res.json({
       success: true,
       data: players,
-      source: 'database',
-      nodeId: process.env.NODE_ID
+      source: players.length > 0 ? 'database' : 'fallback',
+      nodeId: process.env.NODE_ID,
+      warning: players.length === 0 ? 'Database unavailable, no cached data' : null
     });
   } catch (error) {
     logger.error('Error getting top players:', error);
-    res.status(500).json({
+
+    // Último intento: devolver cache viejo
+    try {
+      const emergencyCache = await cacheService.get('players:top100');
+      if (emergencyCache) {
+        return res.json({
+          success: true,
+          data: emergencyCache,
+          source: 'emergency-cache',
+          nodeId: process.env.NODE_ID,
+          warning: 'Using cached data due to system issues'
+        });
+      }
+    } catch (cacheError) {
+      logger.error('Emergency cache also failed:', cacheError);
+    }
+
+    res.status(503).json({
       success: false,
-      error: 'Error fetching players',
+      error: 'Service temporarily unavailable',
       nodeId: process.env.NODE_ID
     });
   }
@@ -76,6 +102,7 @@ async function getPlayerStats(req, res) {
     const { playerId } = req.params;
     const cacheKey = `player:stats:${playerId}`;
 
+    // Intentar desde cache primero
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
@@ -86,6 +113,7 @@ async function getPlayerStats(req, res) {
       });
     }
 
+    // Intentar desde BD
     const stats = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
@@ -124,20 +152,28 @@ async function getPlayerStats(req, res) {
     );
 
     if (stats) {
-      await cacheService.set(cacheKey, stats, 300);
+      await cacheService.set(cacheKey, stats, 600);
+
+      return res.json({
+        success: true,
+        data: stats,
+        source: 'database',
+        nodeId: process.env.NODE_ID
+      });
     }
 
-    res.json({
-      success: true,
-      data: stats,
-      source: stats ? 'database' : 'cache',
-      nodeId: process.env.NODE_ID
+    // No hay datos en BD ni cache
+    res.status(404).json({
+      success: false,
+      error: 'Player not found',
+      nodeId: process.env.NODE_ID,
+      warning: 'Database may be unavailable'
     });
   } catch (error) {
     logger.error('Error getting player stats:', error);
-    res.status(500).json({
+    res.status(503).json({
       success: false,
-      error: 'Error fetching player statistics',
+      error: 'Service temporarily unavailable',
       nodeId: process.env.NODE_ID
     });
   }
@@ -160,6 +196,7 @@ async function searchPlayers(req, res) {
 
     const cacheKey = `players:search:${query.toLowerCase()}`;
 
+    // Intentar cache primero
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
@@ -170,6 +207,7 @@ async function searchPlayers(req, res) {
       });
     }
 
+    // Intentar BD
     const players = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
@@ -200,23 +238,35 @@ async function searchPlayers(req, res) {
       },
       async () => {
         logger.warn('MySQL unavailable for player search');
+        // Intentar búsqueda en cache de top players como fallback
+        const topPlayers = await cacheService.get('players:top100');
+        if (topPlayers) {
+          const filtered = topPlayers.filter(p =>
+            p.player_name.toLowerCase().includes(query.toLowerCase())
+          );
+          return filtered;
+        }
         return [];
       }
     );
 
-    await cacheService.set(cacheKey, players, 180);
+    // Cachear resultados de búsqueda
+    if (players && players.length > 0) {
+      await cacheService.set(cacheKey, players, 180);
+    }
 
     res.json({
       success: true,
       data: players,
       source: 'database',
-      nodeId: process.env.NODE_ID
+      nodeId: process.env.NODE_ID,
+      warning: players.length === 0 ? 'No results or database unavailable' : null
     });
   } catch (error) {
     logger.error('Error searching players:', error);
-    res.status(500).json({
+    res.status(503).json({
       success: false,
-      error: 'Error searching players',
+      error: 'Search service temporarily unavailable',
       nodeId: process.env.NODE_ID
     });
   }
@@ -230,6 +280,7 @@ async function getPlayersByTeam(req, res) {
     const { teamId } = req.params;
     const cacheKey = `team:${teamId}:players`;
 
+    // Cache primero
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       return res.json({
@@ -240,6 +291,7 @@ async function getPlayersByTeam(req, res) {
       });
     }
 
+    // BD
     const players = await mysqlCircuitBreaker.execute(
       async () => {
         const pool = getMySQLPool();
@@ -271,19 +323,22 @@ async function getPlayersByTeam(req, res) {
       }
     );
 
-    await cacheService.set(cacheKey, players, 300);
+    if (players && players.length > 0) {
+      await cacheService.set(cacheKey, players, 600);
+    }
 
     res.json({
       success: true,
       data: players,
-      source: 'database',
-      nodeId: process.env.NODE_ID
+      source: players.length > 0 ? 'database' : 'fallback',
+      nodeId: process.env.NODE_ID,
+      warning: players.length === 0 ? 'No players or database unavailable' : null
     });
   } catch (error) {
     logger.error('Error getting team players:', error);
-    res.status(500).json({
+    res.status(503).json({
       success: false,
-      error: 'Error fetching team players',
+      error: 'Service temporarily unavailable',
       nodeId: process.env.NODE_ID
     });
   }
