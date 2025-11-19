@@ -61,21 +61,19 @@ function Teams() {
       }
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      alert('Error al actualizar favoritos');
+      alert('Error actualizando favoritos');
     }
   };
 
   const fetchTeamStats = async (teamId) => {
     setStatsLoading(true);
     try {
-      // CORRECCIÓN: Añadir /stats al endpoint
       const response = await axios.get(`teams/${teamId}`);
-      console.log('Team stats response:', response.data); // Debug
       setTeamStats(response.data.data);
       setSelectedTeam(teamId);
     } catch (error) {
       console.error('Error fetching team stats:', error);
-      alert('Error al cargar estadísticas del equipo');
+      alert('Error cargando estadísticas del equipo');
     } finally {
       setStatsLoading(false);
     }
@@ -88,168 +86,219 @@ function Teams() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl">Cargando equipos...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center pt-24">
+        <div className="text-white text-2xl font-black uppercase tracking-widest">Cargando equipos...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8">Equipos NBA</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {teams.map((team) => {
-          const isFavorite = favorites.includes(team.id.toString());
-          return (
-            <div
-              key={team.id}
-              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition relative cursor-pointer"
-              onClick={() => fetchTeamStats(team.id)}
-            >
-              {isAuthenticated && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleFavorite(team.id, isFavorite);
-                  }}
-                  className="absolute top-4 right-4 text-2xl hover:scale-110 transition z-10"
-                  title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                >
-                  {isFavorite ? '❤️' : '🤍'}
-                </button>
-              )}
-
-              <div className="mb-2">
-                <span className="text-3xl font-bold text-gray-400 mr-3">
-                  {team.abbreviation}
-                </span>
-              </div>
-
-              <h2 className="text-2xl font-semibold mb-2 pr-8">{team.full_name}</h2>
-              <p className="text-lg text-gray-700 font-medium">{team.nickname}</p>
-              <p className="text-gray-600">{team.city}{team.state ? `, ${team.state}` : ''}</p>
-
-              {team.year_founded && (
-                <p className="text-sm text-gray-500 mt-3">
-                  Fundado en {Math.round(team.year_founded)}
-                </p>
-              )}
-
-              <div className="mt-4 pt-4 border-t">
-                <span className="text-sm text-blue-600 hover:text-blue-800">
-                  Ver estadísticas →
-                </span>
-              </div>
-            </div>
-          );
-        })}
+    <div className="min-h-screen bg-black pt-24 pb-16">
+      {/* Hero Section */}
+      <div className="bg-black py-12 border-b-4 border-red-600 mb-12">
+        <div className="max-w-7xl mx-auto px-8">
+          <h1 className="text-6xl font-black text-white uppercase tracking-wider">
+            EQUIPOS NBA
+          </h1>
+          <p className="text-lg text-gray-400 uppercase tracking-widest font-bold mt-2">
+            TODAS LAS 30 FRANQUICIAS
+          </p>
+        </div>
       </div>
 
-      {/* Modal de Estadísticas */}
+      <div className="max-w-7xl mx-auto px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {teams.map((team) => {
+            const isFavorite = favorites.includes(team.id.toString());
+            return (
+              <div
+                key={team.id}
+                className="bg-white p-6 hover:bg-gray-50 transition-all duration-200 cursor-pointer group relative"
+                onClick={() => fetchTeamStats(team.id)}
+              >
+                {isAuthenticated && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(team.id, isFavorite);
+                    }}
+                    className="absolute top-4 right-4 z-10"
+                  >
+                    <div className={`w-8 h-8 flex items-center justify-center ${
+                      isFavorite ? 'text-red-600' : 'text-gray-300'
+                    } hover:scale-110 transition-transform`}>
+                      <svg className="w-6 h-6" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </div>
+                  </button>
+                )}
+
+                <div className="mb-4">
+                  <span className="text-5xl font-black text-gray-300 group-hover:text-red-600 transition-colors">
+                    {team.abbreviation}
+                  </span>
+                </div>
+
+                <h2 className="text-2xl font-black text-black uppercase mb-1 pr-10">
+                  {team.full_name}
+                </h2>
+                <p className="text-sm font-bold text-gray-600 uppercase tracking-wider mb-1">
+                  {team.nickname}
+                </p>
+                <p className="text-sm text-gray-500 font-medium">
+                  {team.city}{team.state ? `, ${team.state}` : ''}
+                </p>
+
+                {team.year_founded && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <span className="text-xs text-gray-400 uppercase tracking-wider font-bold">
+                      Fundado {Math.round(team.year_founded)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="mt-4 flex items-center text-red-600 font-black text-xs uppercase tracking-wider group-hover:translate-x-2 transition-transform">
+                  <span>Ver estadísticas</span>
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Stats Modal */}
       {selectedTeam && teamStats && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold">{teamStats.full_name}</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4 z-50">
+          <div className="bg-white max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-black px-8 py-6 flex justify-between items-center border-b-4 border-red-600">
+              <h2 className="text-3xl font-black text-white uppercase tracking-wider">
+                {teamStats.full_name}
+              </h2>
               <button
                 onClick={closeStats}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-white hover:text-red-600 transition-colors"
               >
-                ×
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-8 bg-black">
               {statsLoading ? (
-                <div className="text-center py-8">Cargando estadísticas...</div>
+                <div className="text-center py-16 text-white font-black uppercase tracking-wider">
+                  Cargando estadísticas...
+                </div>
               ) : (
                 <>
-                  {/* Información del Equipo */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-gray-50 p-4 rounded">
-                      <p className="text-sm text-gray-600">Ciudad</p>
-                      <p className="text-lg font-semibold">
-                        {teamStats.city}{teamStats.state ? `, ${teamStats.state}` : ''}
+                  {/* Team Info Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-white p-6">
+                      <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">Ciudad</p>
+                      <p className="text-2xl font-black text-black">
+                        {teamStats.city}
                       </p>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <p className="text-sm text-gray-600">Apodo</p>
-                      <p className="text-lg font-semibold">{teamStats.nickname}</p>
+                    <div className="bg-white p-6">
+                      <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">Apodo</p>
+                      <p className="text-2xl font-black text-black">
+                        {teamStats.nickname}
+                      </p>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <p className="text-sm text-gray-600">Abreviatura</p>
-                      <p className="text-lg font-semibold">{teamStats.abbreviation}</p>
+                    <div className="bg-white p-6">
+                      <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">Código</p>
+                      <p className="text-2xl font-black text-black">
+                        {teamStats.abbreviation}
+                      </p>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded">
-                      <p className="text-sm text-gray-600">Fundado</p>
-                      <p className="text-lg font-semibold">
+                    <div className="bg-white p-6">
+                      <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">Fundado</p>
+                      <p className="text-2xl font-black text-black">
                         {teamStats.year_founded ? Math.round(teamStats.year_founded) : 'N/A'}
                       </p>
                     </div>
                   </div>
 
-                  {/* Record de Temporada */}
-                  <div className="bg-blue-50 p-4 rounded mb-6">
-                    <h3 className="text-lg font-semibold mb-3">Record de Temporada</h3>
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                  {/* Season Record */}
+                  <div className="bg-white p-8 mb-8">
+                    <h3 className="text-2xl font-black uppercase tracking-wider text-black mb-6 pb-4 border-b-4 border-red-600">
+                      Récord de la Temporada
+                    </h3>
+                    <div className="grid grid-cols-3 gap-8 text-center">
                       <div>
-                        <p className="text-2xl font-bold text-green-600">
+                        <p className="text-6xl font-black text-black mb-2">
                           {parseInt(teamStats.wins) || 0}
                         </p>
-                        <p className="text-sm text-gray-600">Victorias</p>
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-black">
+                          Victorias
+                        </p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-red-600">
+                        <p className="text-6xl font-black text-black mb-2">
                           {parseInt(teamStats.losses) || 0}
                         </p>
-                        <p className="text-sm text-gray-600">Derrotas</p>
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-black">
+                          Derrotas
+                        </p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-blue-600">
+                        <p className="text-6xl font-black text-red-600 mb-2">
                           {(() => {
                             const wins = parseInt(teamStats.wins) || 0;
                             const losses = parseInt(teamStats.losses) || 0;
                             const totalGames = wins + losses;
-
-                            // CORRECCIÓN: Verificar que haya al menos un juego
                             if (totalGames > 0) {
                               return ((wins / totalGames) * 100).toFixed(1);
                             }
                             return '0.0';
                           })()}%
                         </p>
-                        <p className="text-sm text-gray-600">% Victorias</p>
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-black">
+                          Porcentaje de Victoria
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Estadísticas de Puntos */}
-                  <div className="bg-gray-50 p-4 rounded">
-                    <h3 className="text-lg font-semibold mb-3">Promedios de Puntos</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                  {/* Point Averages */}
+                  <div className="bg-white p-8">
+                    <h3 className="text-2xl font-black uppercase tracking-wider text-black mb-6 pb-4 border-b-4 border-red-600">
+                      Promedios de Puntos
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                       <div>
-                        <p className="text-sm text-gray-600">Puntos Anotados</p>
-                        <p className="text-2xl font-bold text-green-600">
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">
+                          Puntos Anotados
+                        </p>
+                        <p className="text-5xl font-black text-black">
                           {teamStats.avg_points_scored
                             ? parseFloat(teamStats.avg_points_scored).toFixed(1)
                             : '0.0'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Puntos Permitidos</p>
-                        <p className="text-2xl font-bold text-red-600">
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">
+                          Puntos Permitidos
+                        </p>
+                        <p className="text-5xl font-black text-black">
                           {teamStats.avg_points_allowed
                             ? parseFloat(teamStats.avg_points_allowed).toFixed(1)
                             : '0.0'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Diferencial</p>
-                        <p className={`text-2xl font-bold ${(parseFloat(teamStats.avg_points_scored || 0) - parseFloat(teamStats.avg_points_allowed || 0)) > 0
-                          ? 'text-green-600'
-                          : 'text-red-600'
-                          }`}>
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">
+                          Diferencial
+                        </p>
+                        <p className={`text-5xl font-black ${
+                          (parseFloat(teamStats.avg_points_scored || 0) - parseFloat(teamStats.avg_points_allowed || 0)) > 0
+                            ? 'text-red-600'
+                            : 'text-gray-400'
+                        }`}>
                           {(() => {
                             const scored = parseFloat(teamStats.avg_points_scored || 0);
                             const allowed = parseFloat(teamStats.avg_points_allowed || 0);
@@ -259,8 +308,10 @@ function Teams() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Total de Juegos</p>
-                        <p className="text-2xl font-bold text-gray-700">
+                        <p className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">
+                          Juegos Jugados
+                        </p>
+                        <p className="text-5xl font-black text-black">
                           {parseInt(teamStats.total_games) || 0}
                         </p>
                       </div>

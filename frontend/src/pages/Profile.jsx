@@ -33,10 +33,7 @@ function Profile() {
       setSearchHistory(history);
       setNotifications(notificationsRes.data.data || []);
 
-      // Obtener detalles de favoritos
       await fetchFavoritesDetails(favs);
-
-      // Obtener detalles del historial
       await fetchSearchHistoryDetails(history);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -50,41 +47,21 @@ function Profile() {
       const teamFavs = favs.filter(f => f.favoriteType === 'team');
       const playerFavs = favs.filter(f => f.favoriteType === 'player');
 
-      // Fetch team details
       const teamsPromises = teamFavs.map(async (fav) => {
         try {
           const response = await axios.get(`teams/${fav.favoriteId}`);
-          return {
-            id: fav.favoriteId,
-            ...response.data.data,
-            _favId: fav._id
-          };
+          return { id: fav.favoriteId, ...response.data.data, _favId: fav._id };
         } catch (error) {
-          console.error(`Error fetching team ${fav.favoriteId}:`, error);
-          return {
-            id: fav.favoriteId,
-            full_name: `Team ID: ${fav.favoriteId}`,
-            _favId: fav._id
-          };
+          return { id: fav.favoriteId, full_name: `Team ID: ${fav.favoriteId}`, _favId: fav._id };
         }
       });
 
-      // Fetch player details
       const playersPromises = playerFavs.map(async (fav) => {
         try {
           const response = await axios.get(`players/${fav.favoriteId}`);
-          return {
-            id: fav.favoriteId,
-            ...response.data.data,
-            _favId: fav._id
-          };
+          return { id: fav.favoriteId, ...response.data.data, _favId: fav._id };
         } catch (error) {
-          console.error(`Error fetching player ${fav.favoriteId}:`, error);
-          return {
-            id: fav.favoriteId,
-            player_name: `Player ID: ${fav.favoriteId}`,
-            _favId: fav._id
-          };
+          return { id: fav.favoriteId, player_name: `Player ID: ${fav.favoriteId}`, _favId: fav._id };
         }
       });
 
@@ -103,17 +80,15 @@ function Profile() {
     try {
       const detailsPromises = history.map(async (item) => {
         try {
-          // Parsear la query si es un string JSON
           let query = item.query;
           if (typeof query === 'string') {
             try {
               query = JSON.parse(query);
             } catch {
-              // Si no es JSON válido, mantenerlo como está
+              // Keep as is
             }
           }
 
-          // Si la query tiene homeTeamId y awayTeamId, obtener los nombres de los equipos
           if (query?.homeTeamId && query?.awayTeamId) {
             const [homeTeam, awayTeam] = await Promise.all([
               axios.get(`teams/${query.homeTeamId}`).catch(() => null),
@@ -129,7 +104,6 @@ function Profile() {
             };
           }
 
-          // Si la query tiene searchTerm (búsqueda de jugadores)
           if (query?.searchTerm || typeof query === 'string') {
             return {
               ...item,
@@ -138,19 +112,9 @@ function Profile() {
             };
           }
 
-          // Tipo desconocido
-          return {
-            ...item,
-            type: 'unknown',
-            query
-          };
+          return { ...item, type: 'unknown', query };
         } catch (error) {
-          console.error('Error processing history item:', error);
-          return {
-            ...item,
-            type: 'unknown',
-            query: item.query
-          };
+          return { ...item, type: 'unknown', query: item.query };
         }
       });
 
@@ -169,10 +133,8 @@ function Profile() {
         action: 'remove'
       });
 
-      // Actualizar estado local
       setFavorites(favorites.filter(f => !(f.favoriteType === type && f.favoriteId === id)));
 
-      // Actualizar detalles
       if (type === 'team') {
         setFavoritesDetails(prev => ({
           ...prev,
@@ -192,197 +154,166 @@ function Profile() {
 
   const formatNotificationType = (type) => {
     const typeMap = {
-      'auth.login': { label: 'Inicio de Sesión', icon: '🔐', color: 'blue' },
-      'auth.register': { label: 'Registro', icon: '👤', color: 'green' },
-      'auth.logout': { label: 'Cierre de Sesión', icon: '🚪', color: 'gray' },
-      'favorite.added': { label: 'Favorito Agregado', icon: '⭐', color: 'yellow' },
-      'favorite.removed': { label: 'Favorito Eliminado', icon: '❌', color: 'red' },
+      'auth.login': { label: 'Inicio de Sesión', color: 'blue' },
+      'auth.register': { label: 'Registro', color: 'green' },
+      'auth.logout': { label: 'Cierre de Sesión', color: 'gray' },
+      'favorite.added': { label: 'Favorito Agregado', color: 'yellow' },
+      'favorite.removed': { label: 'Favorito Eliminado', color: 'red' },
     };
-    return typeMap[type] || { label: type, icon: '📧', color: 'gray' };
-  };
-
-  const renderNotificationDetails = (notification) => {
-    const { type, data } = notification;
-
-    if (type === 'auth.login') {
-      return (
-        <div className="text-sm text-gray-600 mt-2 space-y-1">
-          <p><span className="font-medium">Email:</span> {data.email}</p>
-          <p><span className="font-medium">Proveedor:</span> {data.provider === 'google' ? 'Google' : 'Local'}</p>
-          {data.ip && <p><span className="font-medium">IP:</span> {data.ip}</p>}
-          {data.userAgent && (
-            <p className="text-xs text-gray-500 truncate" title={data.userAgent}>
-              <span className="font-medium">Navegador:</span> {data.userAgent.substring(0, 50)}...
-            </p>
-          )}
-        </div>
-      );
-    }
-
-    if (type === 'auth.register') {
-      return (
-        <div className="text-sm text-gray-600 mt-2 space-y-1">
-          <p><span className="font-medium">Nombre:</span> {data.name}</p>
-          <p><span className="font-medium">Email:</span> {data.email}</p>
-          <p><span className="font-medium">Proveedor:</span> {data.provider === 'google' ? 'Google' : 'Local'}</p>
-        </div>
-      );
-    }
-
-    // Para otros tipos de notificaciones
-    return (
-      <div className="text-sm text-gray-600 mt-2">
-        <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      </div>
-    );
+    return typeMap[type] || { label: type, color: 'gray' };
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center pt-24">
+        <div className="text-white text-2xl font-black uppercase tracking-widest">Cargando...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="min-h-screen bg-black pt-24 pb-16">
+      <div className="max-w-7xl mx-auto px-8">
+        <div className="bg-white">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-8 text-white">
-            <div className="flex items-center space-x-4">
+          <div className="bg-black px-8 py-8 border-b-4 border-red-600">
+            <div className="flex items-center space-x-6">
               {user?.picture && (
                 <img
                   src={user.picture}
                   alt={user.name}
-                  className="w-20 h-20 rounded-full border-4 border-white"
+                  className="w-20 h-20 border-4 border-red-600"
                 />
               )}
               <div>
-                <h1 className="text-3xl font-bold">{user?.name || 'Usuario'}</h1>
-                <p className="text-blue-100">{user?.email}</p>
-                <p className="text-sm text-blue-200 mt-1">
-                  Autenticado con {user?.provider === 'google' ? 'Google' : 'Email/Password'}
+                <h1 className="text-4xl font-black text-white uppercase tracking-wider">
+                  {user?.name || 'Usuario'}
+                </h1>
+                <p className="text-gray-400 font-bold uppercase tracking-wider text-sm mt-1">
+                  {user?.email}
+                </p>
+                <p className="text-gray-500 uppercase tracking-wider text-xs mt-1">
+                  {user?.provider === 'google' ? 'Google' : 'Email/Password'}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-gray-200">
-            <nav className="flex -mb-px overflow-x-auto">
+          <div className="border-b-2 border-gray-200">
+            <nav className="flex">
               <button
                 onClick={() => setActiveTab('profile')}
-                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'profile'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                className={`px-8 py-4 text-xs font-black uppercase tracking-widest ${
+                  activeTab === 'profile'
+                    ? 'border-b-4 border-red-600 text-black'
+                    : 'text-gray-500 hover:text-black'
+                }`}
               >
                 Perfil
               </button>
               <button
                 onClick={() => setActiveTab('favorites')}
-                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'favorites'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                className={`px-8 py-4 text-xs font-black uppercase tracking-widest ${
+                  activeTab === 'favorites'
+                    ? 'border-b-4 border-red-600 text-black'
+                    : 'text-gray-500 hover:text-black'
+                }`}
               >
                 Favoritos ({favorites.length})
               </button>
               <button
                 onClick={() => setActiveTab('history')}
-                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'history'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                className={`px-8 py-4 text-xs font-black uppercase tracking-widest ${
+                  activeTab === 'history'
+                    ? 'border-b-4 border-red-600 text-black'
+                    : 'text-gray-500 hover:text-black'
+                }`}
               >
                 Historial ({searchHistory.length})
               </button>
               <button
                 onClick={() => setActiveTab('notifications')}
-                className={`px-6 py-4 text-sm font-medium whitespace-nowrap ${activeTab === 'notifications'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                className={`px-8 py-4 text-xs font-black uppercase tracking-widest ${
+                  activeTab === 'notifications'
+                    ? 'border-b-4 border-red-600 text-black'
+                    : 'text-gray-500 hover:text-black'
+                }`}
               >
-                📧 Notificaciones ({notifications.length})
+                Notificaciones ({notifications.length})
               </button>
             </nav>
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="p-8">
             {activeTab === 'profile' && (
-              <div>
-                <h2 className="text-2xl font-semibold mb-4">Información del Perfil</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Nombre</label>
-                    <p className="mt-1 text-gray-900">{user?.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <p className="mt-1 text-gray-900">{user?.email}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Método de Autenticación</label>
-                    <p className="mt-1 text-gray-900 capitalize">
-                      {user?.provider === 'google' ? 'Google OAuth' : 'Email/Password'}
-                    </p>
-                  </div>
-                  <div className="pt-4">
-                    <button
-                      onClick={logout}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                    >
-                      Cerrar Sesión
-                    </button>
-                  </div>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-2">
+                    Nombre
+                  </label>
+                  <p className="text-xl font-bold text-black">{user?.name || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-2">
+                    Email
+                  </label>
+                  <p className="text-xl font-bold text-black">{user?.email}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-2">
+                    Autenticación
+                  </label>
+                  <p className="text-xl font-bold text-black uppercase">
+                    {user?.provider === 'google' ? 'Google OAuth' : 'Email/Password'}
+                  </p>
+                </div>
+                <div className="pt-6 border-t-2 border-gray-200">
+                  <button
+                    onClick={logout}
+                    className="px-8 py-3 bg-black text-white font-black uppercase tracking-widest hover:bg-red-600 transition-colors"
+                  >
+                    Cerrar Sesión
+                  </button>
                 </div>
               </div>
             )}
 
             {activeTab === 'favorites' && (
               <div>
-                <h2 className="text-2xl font-semibold mb-4">Mis Favoritos</h2>
-
                 {favorites.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500 mb-2">No tienes favoritos aún.</p>
-                    <p className="text-sm text-gray-400">Explora equipos y jugadores para agregar favoritos</p>
+                  <div className="text-center py-12">
+                    <p className="text-gray-400 font-bold uppercase tracking-wider">
+                      No tienes favoritos
+                    </p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Equipos Favoritos */}
+                  <div className="space-y-8">
                     {favoritesDetails.teams.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center">
-                          <span className="mr-2">🏀</span>
+                        <h3 className="text-xl font-black uppercase tracking-wider text-black mb-4 pb-2 border-b-2 border-red-600">
                           Equipos ({favoritesDetails.teams.length})
                         </h3>
                         <div className="space-y-2">
                           {favoritesDetails.teams.map((team) => (
                             <div
                               key={team.id}
-                              className="p-4 border rounded-lg hover:bg-gray-50 flex justify-between items-center"
+                              className="p-4 border-2 border-gray-200 hover:border-red-600 flex justify-between items-center transition-colors"
                             >
                               <div>
-                                <p className="font-medium text-lg">{team.full_name}</p>
-                                <p className="text-sm text-gray-600">
-                                  {team.city}{team.state ? `, ${team.state}` : ''} • {team.abbreviation}
+                                <p className="font-black text-xl text-black uppercase">
+                                  {team.full_name}
+                                </p>
+                                <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">
+                                  {team.city} • {team.abbreviation}
                                 </p>
                               </div>
                               <button
                                 onClick={() => removeFavorite('team', team.id)}
-                                className="text-red-500 hover:text-red-700 px-3 py-1 rounded hover:bg-red-50"
-                                title="Eliminar de favoritos"
+                                className="px-4 py-2 text-xs font-black uppercase tracking-wider text-red-600 hover:bg-red-600 hover:text-white transition-colors"
                               >
-                                🗑️ Eliminar
+                                Eliminar
                               </button>
                             </div>
                           ))}
@@ -390,32 +321,31 @@ function Profile() {
                       </div>
                     )}
 
-                    {/* Jugadores Favoritos */}
                     {favoritesDetails.players.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center">
-                          <span className="mr-2">⭐</span>
+                        <h3 className="text-xl font-black uppercase tracking-wider text-black mb-4 pb-2 border-b-2 border-red-600">
                           Jugadores ({favoritesDetails.players.length})
                         </h3>
                         <div className="space-y-2">
                           {favoritesDetails.players.map((player) => (
                             <div
                               key={player.id}
-                              className="p-4 border rounded-lg hover:bg-gray-50 flex justify-between items-center"
+                              className="p-4 border-2 border-gray-200 hover:border-red-600 flex justify-between items-center transition-colors"
                             >
                               <div>
-                                <p className="font-medium text-lg">{player.player_name}</p>
-                                <p className="text-sm text-gray-600">
-                                  {player.position && <span className="mr-2">{player.position}</span>}
-                                  {player.team_name && <span>• {player.team_name}</span>}
+                                <p className="font-black text-xl text-black uppercase">
+                                  {player.player_name}
+                                </p>
+                                <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">
+                                  {player.position && <span>{player.position}</span>}
+                                  {player.team_name && <span> • {player.team_name}</span>}
                                 </p>
                               </div>
                               <button
                                 onClick={() => removeFavorite('player', player.id)}
-                                className="text-red-500 hover:text-red-700 px-3 py-1 rounded hover:bg-red-50"
-                                title="Eliminar de favoritos"
+                                className="px-4 py-2 text-xs font-black uppercase tracking-wider text-red-600 hover:bg-red-600 hover:text-white transition-colors"
                               >
-                                🗑️ Eliminar
+                                Eliminar
                               </button>
                             </div>
                           ))}
@@ -429,76 +359,48 @@ function Profile() {
 
             {activeTab === 'history' && (
               <div>
-                <h2 className="text-2xl font-semibold mb-4">Historial de Búsquedas</h2>
                 {searchHistoryDetails.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500 mb-2">No hay búsquedas recientes.</p>
-                    <p className="text-sm text-gray-400">Tu historial aparecerá aquí después de buscar</p>
+                  <div className="text-center py-12">
+                    <p className="text-gray-400 font-bold uppercase tracking-wider">
+                      No hay búsquedas recientes
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {searchHistoryDetails.map((item, index) => (
-                      <div key={index} className="p-4 border rounded-lg hover:bg-gray-50">
-                        <div className="flex justify-between items-start mb-2">
+                      <div key={index} className="p-4 border-2 border-gray-200 hover:border-red-600 transition-colors">
+                        <div className="flex justify-between items-start">
                           <div className="flex-1">
                             {item.type === 'game_search' ? (
                               <div>
-                                <div className="flex items-center mb-2">
-                                  <span className="text-lg mr-2">🏀</span>
-                                  <h3 className="font-semibold text-gray-900">Búsqueda de Partidos</h3>
-                                </div>
-                                <div className="ml-7 space-y-1">
-                                  <p className="text-gray-700">
-                                    <span className="font-medium">{item.homeTeam?.full_name || 'Equipo Local'}</span>
-                                    {' vs '}
-                                    <span className="font-medium">{item.awayTeam?.full_name || 'Equipo Visitante'}</span>
-                                  </p>
-                                  <p className="text-sm text-gray-500">
-                                    Límite: {item.limit}
-                                  </p>
-                                </div>
+                                <h3 className="font-black text-black uppercase mb-2">
+                                  Búsqueda de Partidos
+                                </h3>
+                                <p className="text-sm text-gray-600 font-bold">
+                                  {item.homeTeam?.full_name || 'Equipo Local'} vs{' '}
+                                  {item.awayTeam?.full_name || 'Equipo Visitante'}
+                                </p>
                               </div>
                             ) : item.type === 'player_search' ? (
                               <div>
-                                <div className="flex items-center mb-2">
-                                  <span className="text-lg mr-2">👤</span>
-                                  <h3 className="font-semibold text-gray-900">Búsqueda de Jugador</h3>
-                                </div>
-                                <div className="ml-7">
-                                  <p className="text-gray-700">
-                                    Término: <span className="font-medium">{item.searchTerm}</span>
-                                  </p>
-                                </div>
+                                <h3 className="font-black text-black uppercase mb-2">
+                                  Búsqueda de Jugador
+                                </h3>
+                                <p className="text-sm text-gray-600 font-bold">
+                                  {item.searchTerm}
+                                </p>
                               </div>
                             ) : (
                               <div>
-                                <div className="flex items-center mb-2">
-                                  <span className="text-lg mr-2">🔍</span>
-                                  <h3 className="font-semibold text-gray-900">Búsqueda</h3>
-                                </div>
-                                <div className="ml-7">
-                                  <p className="text-sm text-gray-600 font-mono bg-gray-100 p-2 rounded">
-                                    {typeof item.query === 'string'
-                                      ? item.query
-                                      : JSON.stringify(item.query, null, 2)}
-                                  </p>
-                                </div>
+                                <h3 className="font-black text-black uppercase mb-2">
+                                  Búsqueda
+                                </h3>
                               </div>
                             )}
                           </div>
                           <div className="text-right ml-4">
-                            <p className="text-xs text-gray-500">
-                              {new Date(item.timestamp).toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric'
-                              })}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(item.timestamp).toLocaleTimeString('es-ES', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+                            <p className="text-xs text-gray-500 font-bold">
+                              {new Date(item.timestamp).toLocaleDateString('es-ES')}
                             </p>
                           </div>
                         </div>
@@ -511,67 +413,37 @@ function Profile() {
 
             {activeTab === 'notifications' && (
               <div>
-                <h2 className="text-2xl font-semibold mb-4">Historial de Notificaciones</h2>
                 {notifications.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500 mb-2">No tienes notificaciones.</p>
-                    <p className="text-sm text-gray-400">Las notificaciones aparecerán aquí cuando se generen</p>
+                  <div className="text-center py-12">
+                    <p className="text-gray-400 font-bold uppercase tracking-wider">
+                      No hay notificaciones
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {notifications.map((notification) => {
                       const typeInfo = formatNotificationType(notification.type);
-                      const statusColors = {
-                        sent: 'bg-green-100 text-green-800',
-                        pending: 'bg-yellow-100 text-yellow-800',
-                        failed: 'bg-red-100 text-red-800'
-                      };
-
                       return (
                         <div
                           key={notification._id}
-                          className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                          className="p-4 border-2 border-gray-200 hover:border-red-600 transition-colors"
                         >
-                          <div className="flex justify-between items-start mb-3">
-                            <div className="flex items-center space-x-3">
-                              <span className="text-2xl">{typeInfo.icon}</span>
-                              <div>
-                                <h3 className="font-semibold text-gray-900">
-                                  {typeInfo.label}
-                                </h3>
-                                <div className="flex items-center space-x-2 mt-1">
-                                  <span className={`text-xs px-2 py-1 rounded-full ${statusColors[notification.status] || 'bg-gray-100 text-gray-800'}`}>
-                                    {notification.status === 'sent' ? '✓ Enviado' :
-                                      notification.status === 'pending' ? '⏳ Pendiente' :
-                                        notification.status === 'failed' ? '✗ Fallido' :
-                                          notification.status}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    📧 {notification.channel || 'email'}
-                                  </span>
-                                </div>
-                              </div>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-black text-black uppercase mb-2">
+                                {typeInfo.label}
+                              </h3>
+                              <p className="text-xs text-gray-500 uppercase tracking-wider">
+                                {notification.status === 'sent' ? 'Enviado' :
+                                 notification.status === 'pending' ? 'Pendiente' : 'Fallido'}
+                              </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-gray-500">
-                                {new Date(notification.sentAt).toLocaleDateString('es-ES', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric'
-                                })}
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                {new Date(notification.sentAt).toLocaleTimeString('es-ES', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit'
-                                })}
+                              <p className="text-xs text-gray-500 font-bold">
+                                {new Date(notification.sentAt).toLocaleDateString('es-ES')}
                               </p>
                             </div>
                           </div>
-
-                          {/* Detalles de la notificación */}
-                          {renderNotificationDetails(notification)}
                         </div>
                       );
                     })}
