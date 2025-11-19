@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
-function Games() {
+function Predictions() {
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [teams, setTeams] = useState([]);
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searching, setSearching] = useState(false);
   const [homeTeamId, setHomeTeamId] = useState('');
-  const [awayTeamId, setAwayTeamId] = useState('');
-  const [limit, setLimit] = useState(10);
+  const [visitorTeamId, setVisitorTeamId] = useState('');
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingTeams, setLoadingTeams] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -19,92 +27,114 @@ function Games() {
         setTeams(response.data.data || []);
       } catch (error) {
         console.error('Error fetching teams:', error);
+        setError('Error loading teams');
       } finally {
-        setLoading(false);
+        setLoadingTeams(false);
       }
     };
-    fetchTeams();
-  }, []);
 
-  const handleSearch = async (e) => {
+    if (isAuthenticated) {
+      fetchTeams();
+    }
+  }, [isAuthenticated]);
+
+  const handlePredict = async (e) => {
     e.preventDefault();
 
-    if (!homeTeamId || !awayTeamId) {
-      alert('Por favor selecciona ambos equipos');
+    if (!homeTeamId || !visitorTeamId) {
+      setError('Please select both teams');
       return;
     }
 
-    setSearching(true);
-    setGames([]);
+    if (homeTeamId === visitorTeamId) {
+      setError('Teams must be different');
+      return;
+    }
+
+    setLoading(true);
+    setPrediction(null);
+    setError('');
 
     try {
-      const params = new URLSearchParams();
-      params.append('homeTeamId', homeTeamId);
-      params.append('awayTeamId', awayTeamId);
-      params.append('limit', limit.toString());
+      const response = await axios.post('predictions/predict', {
+        homeTeamId: homeTeamId,
+        visitorTeamId: visitorTeamId
+      });
 
-      const response = await axios.get(`games/search?${params}`);
-      setGames(response.data.data || []);
-
-      if (response.data.data.length === 0) {
-        alert('No se encontraron partidos entre estos equipos');
+      setPrediction(response.data.data);
+    } catch (err) {
+      console.error('Error getting prediction:', err);
+      if (err.response?.status === 401) {
+        setError('You must sign in to use predictions');
+        navigate('/login');
+      } else if (err.response?.status === 503) {
+        setError('Prediction service temporarily unavailable');
+      } else {
+        setError(err.response?.data?.error || 'Error getting prediction');
       }
-    } catch (error) {
-      console.error('Error searching games:', error);
-      alert(error.response?.data?.error || 'Error al buscar partidos');
     } finally {
-      setSearching(false);
+      setLoading(false);
     }
   };
 
   const getTeamName = (teamId) => {
-    const team = teams.find(t => t.id === parseInt(teamId));
-    return team ? team.full_name : '';
+    const team = teams.find(t => t.id === teamId);
+    return team ? team.full_name : teamId;
   };
 
-  if (loading) {
+  const handleClear = () => {
+    setHomeTeamId('');
+    setVisitorTeamId('');
+    setPrediction(null);
+    setError('');
+  };
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (loadingTeams) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center pt-24">
-        <div className="text-white text-2xl font-black uppercase tracking-widest">
-          Cargando equipos...
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center pt-20 md:pt-24 px-4">
+        <div className="text-white text-xl md:text-2xl font-black uppercase tracking-widest">Loading Teams...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black pt-24 pb-16">
-      <div className="bg-black py-12 border-b-4 border-red-600 mb-12">
-        <div className="max-w-7xl mx-auto px-8">
-          <h1 className="text-6xl font-black text-white uppercase tracking-wider">
-            PARTIDOS HISTÓRICOS
+    <div className="min-h-screen bg-black pt-20 md:pt-24 pb-8 md:pb-16">
+      <div className="bg-black py-8 md:py-12 border-b-4 border-red-600 mb-8 md:mb-12">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white uppercase tracking-wider">
+            PREDICCIONES NBA
           </h1>
-          <p className="text-lg text-gray-400 uppercase tracking-widest font-bold mt-2">
-            BUSCA ENFRENTAMIENTOS DIRECTOS
+          <p className="text-sm md:text-lg text-gray-400 uppercase tracking-widest font-bold mt-2">
+            ANÁLISIS CON MACHINE LEARNING
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8">
-        {!isAuthenticated && (
-          <div className="bg-white border-l-4 border-red-600 px-6 py-4 mb-8">
-            <p className="text-sm font-bold uppercase tracking-wider text-black">
-              CONSEJO: Inicia sesión para guardar tu historial de búsqueda
-            </p>
+      <div className="max-w-7xl mx-auto px-4 md:px-8">
+        {error && (
+          <div className="bg-red-600 text-white px-4 md:px-6 py-4 mb-6 md:mb-8 font-black uppercase tracking-wider text-sm md:text-base">
+            {error}
           </div>
         )}
 
-        <div className="bg-white p-8 mb-8">
-          <form onSubmit={handleSearch} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-4 md:p-8 mb-6 md:mb-8">
+          <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-black mb-4 md:mb-6 pb-3 md:pb-4 border-b-4 border-red-600">
+            Seleccionar Equipos
+          </h2>
+          <form onSubmit={handlePredict} className="space-y-4 md:space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-600 mb-3">
+                <label className="block text-xs font-black uppercase tracking-widest text-gray-600 mb-2 md:mb-3">
                   Equipo Local <span className="text-red-600">*</span>
                 </label>
                 <select
                   value={homeTeamId}
                   onChange={(e) => setHomeTeamId(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black"
+                  className="w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black text-sm md:text-base"
                   required
                 >
                   <option value="">SELECCIONAR EQUIPO LOCAL</option>
@@ -117,57 +147,39 @@ function Games() {
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-600 mb-3">
+                <label className="block text-xs font-black uppercase tracking-widest text-gray-600 mb-2 md:mb-3">
                   Equipo Visitante <span className="text-red-600">*</span>
                 </label>
                 <select
-                  value={awayTeamId}
-                  onChange={(e) => setAwayTeamId(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black"
+                  value={visitorTeamId}
+                  onChange={(e) => setVisitorTeamId(e.target.value)}
+                  className="w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black text-sm md:text-base"
                   required
                 >
                   <option value="">SELECCIONAR EQUIPO VISITANTE</option>
                   {teams.map((team) => (
-                    <option key={`away-${team.id}`} value={team.id}>
+                    <option key={`visitor-${team.id}`} value={team.id}>
                       {team.full_name} ({team.abbreviation})
                     </option>
                   ))}
                 </select>
               </div>
-
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-600 mb-3">
-                  Número de Partidos
-                </label>
-                <input
-                  type="number"
-                  value={limit}
-                  onChange={(e) => setLimit(parseInt(e.target.value) || 10)}
-                  min="1"
-                  max="50"
-                  className="w-full px-4 py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black"
-                />
-              </div>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               <button
                 type="submit"
-                disabled={searching || !homeTeamId || !awayTeamId}
-                className="flex-1 bg-black text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={loading || !homeTeamId || !visitorTeamId || homeTeamId === visitorTeamId}
+                className="flex-1 bg-black text-white py-3 md:py-4 px-4 md:px-6 font-black uppercase tracking-widest hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
               >
-                {searching ? 'BUSCANDO...' : 'BUSCAR PARTIDOS'}
+                {loading ? 'ANALIZANDO...' : 'OBTENER PREDICCIÓN'}
               </button>
 
-              {(homeTeamId || awayTeamId) && (
+              {(homeTeamId || visitorTeamId) && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setHomeTeamId('');
-                    setAwayTeamId('');
-                    setGames([]);
-                  }}
-                  className="px-8 py-4 border-2 border-black text-black font-black uppercase tracking-widest hover:bg-black hover:text-white transition-colors"
+                  onClick={handleClear}
+                  className="px-6 md:px-8 py-3 md:py-4 border-2 border-black text-black font-black uppercase tracking-widest hover:bg-black hover:text-white transition-colors text-sm md:text-base"
                 >
                   Limpiar
                 </button>
@@ -176,67 +188,194 @@ function Games() {
           </form>
         </div>
 
-        {games.length > 0 && (
+        {prediction && (
           <div className="bg-white">
-            <div className="px-8 py-6 bg-black border-b-4 border-red-600">
-              <h2 className="text-2xl font-black text-white uppercase tracking-wider">
-                ÚLTIMOS {games.length} PARTIDOS: {getTeamName(homeTeamId)} VS {getTeamName(awayTeamId)}
+            <div className="bg-black px-4 md:px-8 py-4 md:py-6 border-b-4 border-red-600">
+              <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-wider">
+                RESULTADOS DE LA PREDICCIÓN
               </h2>
             </div>
-            <div className="divide-y divide-gray-200">
-              {games.map((game) => {
-                const homeWon = game.wl_home === 'W';
-                return (
-                  <div key={game.game_id} className="px-8 py-6 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">
-                        {new Date(game.game_date).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+
+            <div className="p-4 md:p-8">
+              <div className="mb-6 md:mb-8 text-center">
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
+                  <div className="text-center md:text-right flex-1 w-full">
+                    <h3 className="text-xl md:text-3xl font-black text-black uppercase mb-2">
+                      {getTeamName(prediction.home_team_id)}
+                    </h3>
+                    <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider">Local</span>
+                  </div>
+                  <div className="text-2xl md:text-4xl font-black text-gray-400">VS</div>
+                  <div className="text-center md:text-left flex-1 w-full">
+                    <h3 className="text-xl md:text-3xl font-black text-black uppercase mb-2">
+                      {getTeamName(prediction.visitor_team_id)}
+                    </h3>
+                    <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider">Visitante</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
+                <div className="bg-black p-6 md:p-8 text-center">
+                  <div className="text-4xl md:text-6xl font-black text-white mb-2 md:mb-3">
+                    {prediction.home_team_win_probability}%
+                  </div>
+                  <div className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">
+                    Probabilidad Local
+                  </div>
+                </div>
+
+                <div className="bg-black p-6 md:p-8 text-center">
+                  <div className="text-4xl md:text-6xl font-black text-white mb-2 md:mb-3">
+                    {prediction.visitor_team_win_probability}%
+                  </div>
+                  <div className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">
+                    Probabilidad Visitante
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-10 md:h-12 bg-gray-200 overflow-hidden flex mb-6 md:mb-8">
+                <div
+                  className="bg-red-600 flex items-center justify-center text-white text-xs md:text-sm font-black"
+                  style={{ width: `${prediction.home_team_win_probability}%` }}
+                >
+                  {prediction.home_team_win_probability > 15 && `${prediction.home_team_win_probability}%`}
+                </div>
+                <div
+                  className="bg-gray-600 flex items-center justify-center text-white text-xs md:text-sm font-black"
+                  style={{ width: `${prediction.visitor_team_win_probability}%` }}
+                >
+                  {prediction.visitor_team_win_probability > 15 && `${prediction.visitor_team_win_probability}%`}
+                </div>
+              </div>
+
+              <div className="bg-black p-6 md:p-8 mb-6 md:mb-8">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <div className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-widest mb-2">
+                      Ganador Predicho
+                    </div>
+                    <div className="text-2xl md:text-4xl font-black text-white uppercase">
+                      {prediction.predicted_winner === 'home'
+                        ? getTeamName(prediction.home_team_id)
+                        : getTeamName(prediction.visitor_team_id)}
+                    </div>
+                  </div>
+                  <div className="text-left md:text-right">
+                    <div className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-widest mb-2">
+                      Confianza
+                    </div>
+                    <span className={`inline-block px-4 md:px-6 py-2 md:py-3 text-xs md:text-sm font-black uppercase tracking-wider ${
+                      prediction.confidence === 'high' ? 'bg-red-600 text-white' :
+                      prediction.confidence === 'medium' ? 'bg-gray-300 text-black' :
+                      'bg-gray-200 text-gray-600'
+                    }`}>
+                      {prediction.confidence === 'high' ? 'ALTA' :
+                       prediction.confidence === 'medium' ? 'MEDIA' : 'BAJA'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {prediction.estimated_score && (
+                <div className="bg-gray-100 p-6 md:p-8 mb-6 md:mb-8">
+                  <h3 className="text-xl md:text-2xl font-black uppercase tracking-wider text-black mb-4 md:mb-6 pb-3 md:pb-4 border-b-4 border-red-600">
+                    Marcador Estimado
+                  </h3>
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12">
+                    <div className="text-center">
+                      <div className="text-4xl md:text-6xl font-black text-black mb-2">
+                        {prediction.estimated_score.home}
                       </div>
-
-                      <div className="flex-1 mx-8 flex items-center justify-between">
-                        <div className="text-right">
-                          <div className="text-xl font-black text-black uppercase">{game.home_team}</div>
-                          <div className="text-sm text-gray-500 font-bold">{game.home_abbr}</div>
-                        </div>
-
-                        <div className="mx-8 flex items-center space-x-4">
-                          <div className={`text-4xl font-black ${homeWon ? 'text-red-600' : 'text-gray-400'}`}>
-                            {game.home_team_score}
-                          </div>
-                          <div className="text-2xl text-gray-400 font-black">-</div>
-                          <div className={`text-4xl font-black ${!homeWon ? 'text-red-600' : 'text-gray-400'}`}>
-                            {game.visitor_team_score}
-                          </div>
-                        </div>
-
-                        <div className="text-left">
-                          <div className="text-xl font-black text-black uppercase">{game.visitor_team}</div>
-                          <div className="text-sm text-gray-500 font-bold">{game.visitor_abbr}</div>
-                        </div>
+                      <div className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-wider">Local</div>
+                    </div>
+                    <div className="text-2xl md:text-4xl font-black text-gray-400">-</div>
+                    <div className="text-center">
+                      <div className="text-4xl md:text-6xl font-black text-black mb-2">
+                        {prediction.estimated_score.visitor}
                       </div>
+                      <div className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-wider">Visitante</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                      <div className={`px-4 py-2 font-black uppercase tracking-wider text-xs ${
-                        homeWon ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-600'
-                      }`}>
-                        {homeWon ? 'VICTORIA LOCAL' : 'VICTORIA VISITANTE'}
+              {prediction.factors && (
+                <div className="border-t-4 border-black pt-6 md:pt-8">
+                  <h3 className="text-xl md:text-2xl font-black uppercase tracking-wider text-black mb-4 md:mb-6">
+                    Factores Analizados
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    <div className="bg-gray-100 p-4 md:p-6">
+                      <div className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">
+                        Win Rate Local Reciente
+                      </div>
+                      <div className="text-3xl md:text-4xl font-black text-black">
+                        {prediction.factors.home_recent_win_rate}%
+                      </div>
+                      <div className="text-xs text-gray-500 uppercase mt-2">
+                        {prediction.factors.home_recent_games} Juegos Analizados
+                      </div>
+                    </div>
+                    <div className="bg-gray-100 p-4 md:p-6">
+                      <div className="text-xs text-gray-500 uppercase tracking-widest font-black mb-2">
+                        Win Rate Visitante Reciente
+                      </div>
+                      <div className="text-3xl md:text-4xl font-black text-black">
+                        {prediction.factors.visitor_recent_win_rate}%
+                      </div>
+                      <div className="text-xs text-gray-500 uppercase mt-2">
+                        {prediction.factors.visitor_recent_games} Juegos Analizados
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              )}
+              {prediction.head_to_head && (
+                <div className="border-t-4 border-black pt-6 md:pt-8 mt-6 md:mt-8">
+                  <h3 className="text-xl md:text-2xl font-black uppercase tracking-wider text-black mb-4 md:mb-6">
+                    Historial de Enfrentamientos
+                  </h3>
+                  <div className="bg-gray-100 p-6 md:p-8">
+                    <div className="flex flex-col md:flex-row items-center justify-around gap-6 md:gap-4">
+                      <div className="text-center">
+                        <div className="text-4xl md:text-5xl font-black text-black mb-2">
+                          {prediction.head_to_head.home_wins}
+                        </div>
+                        <div className="text-xs text-gray-500 uppercase tracking-widest font-black">
+                          Victorias Local
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-4xl md:text-5xl font-black text-gray-400 mb-2">
+                          {prediction.head_to_head.total_games}
+                        </div>
+                        <div className="text-xs text-gray-500 uppercase tracking-widest font-black">
+                          Total Juegos
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-4xl md:text-5xl font-black text-black mb-2">
+                          {prediction.head_to_head.visitor_wins}
+                        </div>
+                        <div className="text-xs text-gray-500 uppercase tracking-widest font-black">
+                          Victorias Visitante
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {games.length === 0 && !searching && (
-          <div className="bg-white p-16 text-center">
-            <div className="text-6xl text-gray-300 mb-6"></div>
-            <p className="text-gray-500 text-lg font-bold uppercase tracking-wider">
-              Selecciona los equipos para buscar su historial de partidos
+        {!prediction && !loading && (
+          <div className="bg-white p-12 md:p-16 text-center">
+            <div className="text-4xl md:text-6xl text-gray-300 mb-4 md:mb-6"></div>
+            <p className="text-gray-500 text-base md:text-lg font-bold uppercase tracking-wider">
+              Select two teams to get a machine learning powered prediction
             </p>
           </div>
         )}
@@ -245,4 +384,4 @@ function Games() {
   );
 }
 
-export default Games;
+export default Predictions;

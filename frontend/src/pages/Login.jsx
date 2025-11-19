@@ -62,30 +62,30 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center py-16 px-4">
+    <div className="min-h-screen bg-black flex items-center justify-center py-12 md:py-16 px-4">
       <div className="max-w-md w-full">
-        <div className="bg-white p-8 mb-8">
-          <h2 className="text-4xl font-black text-black uppercase tracking-wider text-center mb-2">
+        <div className="bg-white p-6 md:p-8 mb-6 md:mb-8">
+          <h2 className="text-2xl md:text-4xl font-black text-black uppercase tracking-wider text-center mb-2">
             {isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
           </h2>
-          <p className="text-sm text-gray-500 uppercase tracking-widest font-bold text-center mb-8">
+          <p className="text-xs md:text-sm text-gray-500 uppercase tracking-widest font-bold text-center mb-6 md:mb-8">
             NBA Analytics Hub
           </p>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-4 md:space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-600 text-white px-4 py-3 font-bold uppercase tracking-wider text-sm">
+              <div className="bg-red-600 text-white px-4 py-3 font-bold uppercase tracking-wider text-xs md:text-sm">
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="bg-black text-white px-4 py-3 font-bold uppercase tracking-wider text-sm">
+              <div className="bg-black text-white px-4 py-3 font-bold uppercase tracking-wider text-xs md:text-sm">
                 {success}
               </div>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {isRegister && (
                 <div>
                   <label htmlFor="name" className="block text-xs font-black uppercase tracking-widest text-gray-600 mb-2">
@@ -96,7 +96,7 @@ function Login() {
                     name="name"
                     type="text"
                     required={isRegister}
-                    className="w-full px-4 py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black"
+                    className="w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black text-sm md:text-base"
                     placeholder="NOMBRE COMPLETO"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -114,7 +114,7 @@ function Login() {
                   type="email"
                   autoComplete="email"
                   required
-                  className="w-full px-4 py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black"
+                  className="w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black text-sm md:text-base"
                   placeholder="CORREO ELECTRÓNICO"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -131,7 +131,7 @@ function Login() {
                   type="password"
                   autoComplete="current-password"
                   required
-                  className="w-full px-4 py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black"
+                  className="w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 focus:border-red-600 focus:outline-none font-bold text-black text-sm md:text-base"
                   placeholder="CONTRASEÑA"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -143,7 +143,7 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-black text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full bg-black text-white py-3 md:py-4 px-4 md:px-6 font-black uppercase tracking-widest hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
               >
                 {loading ? 'PROCESANDO...' : isRegister ? 'Registrarse' : 'Iniciar Sesión'}
               </button>
@@ -153,8 +153,8 @@ function Login() {
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t-2 border-gray-300" />
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500 font-bold uppercase tracking-wider">
+              <div className="relative flex justify-center text-xs md:text-sm">
+                <span className="px-3 md:px-4 bg-white text-gray-500 font-bold uppercase tracking-wider">
                   O Continuar Con
                 </span>
               </div>
@@ -162,7 +162,7 @@ function Login() {
 
             <div>
               {googleError && (
-                <div className="mb-4 bg-gray-100 border-l-4 border-red-600 px-4 py-3">
+                <div className="mb-4 bg-gray-100 border-l-4 border-red-600 px-3 md:px-4 py-3">
                   <p className="text-xs font-black uppercase tracking-wider text-black">
                     Google OAuth No Disponible
                   </p>
@@ -172,10 +172,10 @@ function Login() {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center px-4 py-4 border-2 border-gray-300 bg-white text-black font-bold uppercase tracking-wider hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-center px-3 md:px-4 py-3 md:py-4 border-2 border-gray-300 bg-white text-black font-bold uppercase tracking-wider hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs md:text-sm"
                 disabled={!!googleError}
               >
-                <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 md:w-5 md:h-5 mr-2 md:mr-3" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -193,7 +193,8 @@ function Login() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                   />
                 </svg>
-                Continuar con Google
+                <span className="hidden sm:inline">Continuar con Google</span>
+                <span className="sm:hidden">Google</span>
               </button>
               {googleError && (
                 <p className="mt-2 text-xs text-center text-gray-500 font-medium">
@@ -211,7 +212,7 @@ function Login() {
                   setSuccess('');
                   setGoogleError('');
                 }}
-                className="text-black font-bold uppercase tracking-wider text-sm hover:text-red-600 transition-colors"
+                className="text-black font-bold uppercase tracking-wider text-xs md:text-sm hover:text-red-600 transition-colors"
               >
                 {isRegister
                   ? '¿Ya tienes una cuenta? Inicia sesión'
